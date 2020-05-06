@@ -115,9 +115,11 @@ uint32_t BitReader::readBits32(int count) {
 			curShift = BYTE;
 			curBits = BYTE;
 			if (!stream.eof())
+			//if (cur < fsize) {
 				stream.read((char*) &curByte, 1);
-			else
-				curByte = -1;
+			/*	curByte = file[cur++];
+			} else
+				curByte = -1;*/
 		}
 	} catch (std::ifstream::failure e) {
 		fprintf(stderr, "Exception reading file.\n");
@@ -139,8 +141,10 @@ uint64_t BitReader::readBits64(int count) {
 			curBits = BYTE;
 			if (!stream.eof())
 				stream.read((char*) &curByte, 1);
+			/*if (cur < fsize) 
+				curByte = file[cur++];
 			else
-				curByte = -1;
+				curByte = -1;*/
 		}
 	} catch (std::ifstream::failure e) {
 		fprintf(stderr, "Exception reading file.\n");
@@ -150,10 +154,59 @@ uint64_t BitReader::readBits64(int count) {
 	return value;
 }
 
+uint16_t BitReader::read_uint16_t() {
+	uint16_t value;
+	try {
+		stream.read((char*) &value, 2);
+	} catch (std::ifstream::failure e) {
+		fprintf(stderr, "Exception reading file.\n");
+	}
+	return value;
+}
+
+uint32_t BitReader::read_uint32_t() {
+	uint32_t value;
+	try {
+		stream.read((char*) &value, 4);
+	} catch (std::ifstream::failure e) {
+		fprintf(stderr, "Exception reading file.\n");
+	}
+	return value;
+}
+
+uint64_t BitReader::read_uint64_t() {
+	uint64_t value = 0;
+	/*try {
+		stream.read(buffer, 8);
+	} catch (std::ifstream::failure e) {
+		fprintf(stderr, "Exception reading file.\n");
+	}*/
+	return value;
+}
+
+/*void init_buffer(int len) {
+	buffer = new char[len];
+}
+
+void read_to_buffer(int len) {
+	try {
+		stream.read(buffer, len);
+	} catch (std::ifstream::failure e) {
+		fprintf(stderr, "Exception reading file.\n");
+	}
+}*/
+
 void BitReader::openFile(const std::string &fn) {
 	try {
 		stream.open(fn.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+		
 		stream.seekg(0, std::ios::beg);
+		//char nextByte = 0;
+		/*while(!stream.eof()) {
+			stream.read((char*) &nextByte, 1);
+			file.push_back(nextByte);
+			fsize++;
+		}*/
 	} catch (std::ifstream::failure e) {
 		fprintf(stderr, "File does not exist.\n");
 	}
@@ -162,6 +215,7 @@ void BitReader::openFile(const std::string &fn) {
 void BitReader::closeFile() {
 	try {
 		stream.close();
+		//file.clear();
 	} catch (std::ifstream::failure e) {
 		fprintf(stderr, "Exception closing file.\n");
 	}
