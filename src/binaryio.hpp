@@ -6,7 +6,7 @@
 
 #define BYTE 8
 #define END32 0xFFFFFFFF
-#define END64 0xFFFFFFFFFFFFFFFF
+#define END64 0xFFFFFFFFFFFFFFFFul
 
 class BitWriter {
 	public:
@@ -23,6 +23,11 @@ class BitWriter {
 		void flush32();
 		void flush64();
 		void closeFile();
+		void reset() {
+			curBits = 0;
+			curByte = 0;
+		}
+
 };
 
 class BitReader {
@@ -30,6 +35,9 @@ class BitReader {
 		std::ifstream stream;
 		int curBits = 0;
 		int curByte = 0;
+		//size_t cur = 0, fsize = 0;
+		//std::vector<char> file;
+		char* buffer = NULL;
 		//int test = 0;
 
 		/* Contructors */
@@ -40,7 +48,20 @@ class BitReader {
 		void openFile(const std::string &fn);
 		uint32_t readBits32(int);
 		uint64_t readBits64(int);
+
+		uint16_t read_uint16_t();
+		uint32_t read_uint32_t();
+		uint64_t read_uint64_t();
+
+		//void init_buffer(int);
+		//void read_to_buffer(int);
+
 		void closeFile();
+		void reset() {
+			curBits = 0;
+			curByte = 0;
+			delete []buffer;
+		}
 };
 
 #endif
