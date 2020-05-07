@@ -100,30 +100,16 @@ class FastaReader {
 		void readFnMap(std::string&, std::string&);
 
 		/* Compute minimum unique substrings. */
-		void* computeIndexstats();
-		void* computeIndexdense();
-		void* computeIndexdense_d();
 		void* computeIndexmin();
-		//void* computeIndexsum();
-		//void* computeIndexmin_ext();
 		void* computeIndexmin_d();
-		void* analIndexCLARK();
 		static void *computeIndex_t(void *obj) {
 			switch (mode_) {
-				case 0:
-					return ((FastaReader*) obj)->computeIndexstats();
-				case 1:
-					return ((FastaReader*) obj)->computeIndexdense();
-				case 11:
-					return ((FastaReader*) obj)->computeIndexdense_d();
 				case 2:
 					return ((FastaReader*) obj)->computeIndexmin();
 				case 4:
 					return ((FastaReader*) obj)->computeIndexmin_d();
-				case 5:
-					//return ((FastaReader*) obj)->computeIndexsum();
 				default:
-					return ((FastaReader*) obj)->analIndexCLARK();
+					return ((FastaReader*) obj)->computeIndexmin();
 			}
 		}
 

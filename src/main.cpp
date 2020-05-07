@@ -19,20 +19,20 @@ bool validFile(const char* _file) {
 
 void printUsage() {
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Metagenomic species abundance quantification.\n\n");
-	fprintf(stderr, "Usage: ./run --<option> parameters\n\n");
+	fprintf(stderr, "CAMMiQ: Metagenomic microbial abundance quantification.\n\n");
+	fprintf(stderr, "Usage: ./cammiq --<option> parameters\n\n");
 	fprintf(stderr, "Definitions of parameters: \n\n");
-	fprintf(stderr, "option = build | query | refine.\n");
-	fprintf(stderr, "-k <integer>,\t minimum substring length: integer, >= 5 and <= read length. Default value is 20.\n");
+	fprintf(stderr, "option = build | query .\n");
+	fprintf(stderr, "-k <integer>,\t minimum substring length: integer, >= 5 and <= read length. Default value is 26.\n");
 	fprintf(stderr, "-L <integer>,\t read length: integer, default value is 100.\n");
-	fprintf(stderr, "-h <integer>,\t hash length: integer, default value is 12.\n");
+	fprintf(stderr, "-h <integer>,\t hash length: integer, default value is 26.\n");
 	fprintf(stderr, "-f <string>,\t file names separated by space.\n");
 	fprintf(stderr, "-d <string>,\t directoty containing the fasta or fastq files. \n");
-	fprintf(stderr, "-i <string>,\t indexing options: one in stat | dense | minimum | doubly_unique.\n");
+	fprintf(stderr, "-i <string>,\t indexing options: one in unique | doubly_unique | both.\n");
 	fprintf(stderr, "-t <integer>,\t number of threads. \n\n");
 	fprintf(stderr, "--help,\t to print user options.\n");
-	fprintf(stderr, "--version,\t to print the version information.\n\n");
-	fprintf(stderr, "Version: 0.0; Contact: kzhu@indiana.edu.\n");
+	//fprintf(stderr, "--version,\t to print the version information.\n\n");
+	//fprintf(stderr, "Version: 0.0; Contact: kzhu@indiana.edu.\n");
 }
 
 int main(int argc, char** argv) {
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 	}
 
 	/* Check the parameters. */
-	int K = 20, L = 100, t = 1, h = -1, h1 = -1, h2 = -1;
+	int K = 26, L = 100, t = 1, h = -1, h1 = -1, h2 = -1;
 	std::string fa_name = "", fa_dir = "", fm_name = "", fi_name = "", fq_name = "", fq_dir = "";
 	std::vector<std::string> fa_names;
 	std::vector<std::string> fq_names;
@@ -68,10 +68,6 @@ int main(int argc, char** argv) {
 			mode = 1;
 			continue;
 		}
-		/*if (val == "--query_mix") {
-			mode = 2;
-			continue;
-		}*/
 		if (val == "-k") {
 			if (mode > 0) {
 				fprintf(stderr, "Parameter k is only valid in mode BUILD.\n"); 
@@ -262,20 +258,12 @@ int main(int argc, char** argv) {
 			else
 				main_fr->allocSuffixArray(0);
 			main_fr->setHashLength(h);
-			if (idx_option.compare("stat") == 0)
-				main_fr->computeIndex(0);
-			if (idx_option.compare("stat_kmer") == 0)
-				main_fr->computeIndex(3);
-			if (idx_option.compare("non_overlap") == 0)
-				main_fr->computeIndex(1);
-			if (idx_option.compare("non_overlap_d") == 0)
-				main_fr->computeIndex(11);
-			if (idx_option.compare("minimum") == 0)
+			
+			if (idx_option.compare("unique") == 0)
 				main_fr->computeIndex(2);
 			if (idx_option.compare("doubly_unique") == 0)
 				main_fr->computeIndex(4);
-			if (idx_option.compare("sum") == 0)
-				main_fr->computeIndex(5);
+			
 			if (main_fr)
 				delete main_fr;
 			break;
