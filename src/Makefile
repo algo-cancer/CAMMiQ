@@ -24,7 +24,7 @@ SRCS = gsa.cpp hashtrie.cpp binaryio.cpp build.cpp query.cpp main.cpp
  
 OBJS = $(SRCS: .cpp = .o) 
 
-EXEC = cammiq
+EXEC = ../cammiq
 
 $(EXEC) : $(OBJS)
 	cd $(SUFSORTDIR)
