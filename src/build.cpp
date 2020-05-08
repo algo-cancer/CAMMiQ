@@ -255,57 +255,30 @@ bool FastaReader::insertRC() {
 	return true;
 }
 
-void FastaReader::allocSuffixArray(bool doubly_unique) {
-	/* Allocate the memory space of input string. */
+void FastaReader::allocSuffixArray(int doubly_unique) {
 	uint64_t N = cur * block_size_ + pos;
-	seqs_ = new uint8_t[N + 2];
-	for (size_t i = 0; i < cur; i++)
-		memcpy(seqs_ + i * block_size_, seqs[i], block_size_);
-	memcpy(seqs_ + cur * block_size_, seqs[cur], pos);
-	fprintf(stderr, "Input string get prepared.\n");
-	/*size_t j = 0, cc = 0;
-	for (size_t i = 0; i < ref_pos.size(); i++, cc = 0) {
-		
-		while (contig_pos[j] < ref_pos[i]) {
-			cc++;
-			j++;
-		}
+	switch (doubly_unique) {
+		case 0:
+			/* Allocate the memory space of input string. */
+			seqs_ = new uint8_t[N + 2];
+			for (size_t i = 0; i < cur; i++)
+				memcpy(seqs_ + i * block_size_, seqs[i], block_size_);
+			memcpy(seqs_ + cur * block_size_, seqs[cur], pos);
+			fprintf(stderr, "Input string get prepared.\n");
 
-		if (i == 0)
-			fprintf(stderr, "%u\t%lu\n", refID[i], ref_pos[i] - (cc + 1) * L - (cc + 1) * 4);
-		else
-			fprintf(stderr, "%u\t%lu\n", refID[i], ref_pos[i] - (cc + 1) * L - ref_pos[i - 1] - (cc + 1) * 4);
-	}*/
-
-	//for (size_t i = 0; i < 10; i++)
-	//	fprintf(stderr, "%lu\n", ref_pos[i]);
-	/*std::string test = "CAGCGGATCTGATGG";
-	uint8_t *test_ = new uint8_t[test.length()];
-	for (size_t i = 0; i < test.length(); i++)
-		test_[i] = test[i] + 165;
-	for (uint64_t i = 0; i < N; i++)
-		if (memcmp(seqs_ + i, test_, test.length()) == 0) {
-			fprintf(stderr, "Found at pos %lu\t", i);
-			for (int j = 0; j < (int)(test.length() + 3); j++)
-				fprintf(stderr, "%c", (seqs_ + i)[j - 1] - 165);
-			fprintf(stderr, "\n");
-		}
-	*/
-	/*size_t j = 0;
-	for (size_t i = 0; i < contig_pos.size(); i++) {
-		while (contig_pos[i] > ref_pos[j])
-			j++;
-		fprintf(stderr, "%lu\t%u\n", contig_pos[i], refID[j]);
-	}*/
-
-	/* Compute suffix arrays. */	
-	seqs_[N] = 0;
-	seqs_[N + 1] = 0;
-	sa = new SuffixArray(N);
-	if (doubly_unique)
-		mu_index = sa->run(seqs_, ref_pos, refID, N, 3, L, minuL - 1, 1, 0, 0);
-	else 
-		mu_index = sa->run(seqs_, ref_pos, refID, N, 2, L, minuL - 1, 1, 0, 0);
+			/* Compute suffix arrays. */	
+			seqs_[N] = 0;
+			seqs_[N + 1] = 0;
+			sa = new SuffixArray(N);
+			sa->run(seqs_, ref_pos, refID, N, 0, L, 0, 1, 0, 0);
+			return;
+		case 1:
+			mu_index = sa->run(seqs_, ref_pos, refID, N, 3, L, minuL - 1, 1, 0, 0);
+			return;
+		case 2:
+			mu_index = sa->run(seqs_, ref_pos, refID, N, 4, L, minuL - 1, 1, 0, 0);
+			return;
+	}	
 }
 
 void FastaReader::insert32(uint64_t i, uint32_t length, uint32_t rid, uint8_t *occ) {

@@ -253,17 +253,26 @@ int main(int argc, char** argv) {
 
 			main_fr->readFnMap(fa_dir, fm_name);
 			main_fr->readAllFasta();
-			if (idx_option.compare("doubly_unique") == 0)
+			main_fr->allocSuffixArray(0);
+
+			if (idx_option.compare("unique") == 0) {
 				main_fr->allocSuffixArray(1);
-			else
-				main_fr->allocSuffixArray(0);
-			main_fr->setHashLength(h);
-			
-			if (idx_option.compare("unique") == 0)
+				main_fr->setHashLength(h);
+				main_fr->computeIndex(1);
+			}
+			if (idx_option.compare("doubly_unique") == 0) {
+				main_fr->allocSuffixArray(2);
+				main_fr->setHashLength(h);
 				main_fr->computeIndex(2);
-			if (idx_option.compare("doubly_unique") == 0)
-				main_fr->computeIndex(4);
-			
+			}
+			if (idx_option.compare("both") == 0) {
+				main_fr->allocSuffixArray(1);
+				main_fr->setHashLength(h1);
+				main_fr->computeIndex(1);
+				main_fr->allocSuffixArray(2);
+				main_fr->setHashLength(h2);
+				main_fr->computeIndex(2);
+			}
 			if (main_fr)
 				delete main_fr;
 			break;

@@ -396,22 +396,23 @@ uint64_t* SuffixArray::run(uint8_t* s, std::vector<uint64_t> &spos,
 				std::vector<uint32_t> &sid, uint64_t n, int mode, 
 				uint8_t ulmax, uint8_t el, bool debug,
 				bool debug_sa, bool print_avg) {
-	computeSuffixArray(s, n, debug, debug_sa);
-	computeRevSuffixArray(n, debug);
-	computeGnrSuffixArray(spos, sid, n, debug);
-	computeLcpArray(s, n, debug, print_avg);
-
 	switch (mode) {
 		case 0:
+			computeSuffixArray(s, n, debug, debug_sa);
+			computeRevSuffixArray(n, debug);
+			computeGnrSuffixArray(spos, sid, n, debug);
+			computeLcpArray(s, n, debug, print_avg);
+			return NULL;
+		case 1:
 			computeGnrLcpArray(n, debug);
 			break;
-		case 1:
+		case 2:
 			computeGnrLcpArray_d(n, debug);
 			break;
-		case 2:
+		case 3:
 			computeGnrLcpArray_ext(n, el, debug);
 			break;
-		case 3 :
+		case 4:
 			computeGnrLcpArray_dext(n, el, ulmax, debug);
 			break;
 	}
