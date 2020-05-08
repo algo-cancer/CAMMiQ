@@ -1,3 +1,4 @@
+
 CC = g++ 
 
 CPLEXROOTDIR = ./cplex_12.9.0/CPLEX_Studio
@@ -27,10 +28,7 @@ OBJS = $(SRCS: .cpp = .o)
 EXEC = ../cammiq
 
 $(EXEC) : $(OBJS)
-	cd $(SUFSORTDIR)
-	$(CC) -o $@ $^ $(CPPFLAGS) $(LIBS)
-
-	#$(CC) $(CPPFLAGS) $(LIBS) $^ -o $@  
+	$(CC) -o $@ $^ $(CPPFLAGS) $(LIBS)  
  
 %.o : %.cpp 
 	$(CC) -c $(CPPFLAGS) $<  
