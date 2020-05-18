@@ -1,20 +1,23 @@
 #include <cstring>
+#include <fstream>
 #include <chrono>
+#include <omp.h>
+
 #include "divsufsort.h"
 #include "gsa.hpp"
 
-SuffixArray::SuffixArray(uint64_t n) {
+SuffixArray::SuffixArray(uint64_t n, int gsa_unit) {
 	SA = new int64_t[n + 2];
-	REV = new uint64_t[n + 2];
-	GSA = new uint32_t[n + 2];
-	LCP = new uint8_t[n + 2];
-	LCP0 = new uint8_t[n + 2];
-	GSA2 = new uint32_t[n + 2];
-	occ = new uint8_t[n + 2];
-	occ2 = new uint8_t[n + 2];
+	REV = new uint64_t[n + 10];
+	gsa_unit_ = gsa_unit;
 }
 
-void SuffixArray::computeSuffixArray(uint8_t* s, uint64_t n, bool debug, bool debug_sa) {
+void SuffixArray::allocBuffer(uint64_t n) {
+	buffer = new uint64_t[n];
+	//memset(buffer, 0, sizeof(uint64_t) * (n));
+}
+
+void SuffixArray::computeSuffixArray(uint8_t *s, uint64_t n, bool debug, bool debug_sa) {
 	auto start = std::chrono::high_resolution_clock::now();
 	if (divsufsort(s, SA, n) != 0) {
 		fprintf(stderr, "Error occurred in computing suffix array.\n");
@@ -39,9 +42,8 @@ void SuffixArray::computeRevSuffixArray(uint64_t n, bool debug) {
 	#pragma omp parallel for
 	for (uint64_t i = 0; i < n; i++) {
 		uint64_t SA_i = SA[i];
-		if (REV[SA_i] == 0) {
+		if (REV[SA_i] == 0)
 			REV[SA_i] = i;
-		}
 		else {
 			fprintf(stderr, "i: %lu; SA[i]: %lu; REV: %lu.\n", i, SA_i, REV[SA_i]);
 			fprintf(stderr, "Error in suffix array.\n");
@@ -55,18 +57,53 @@ void SuffixArray::computeRevSuffixArray(uint64_t n, bool debug) {
 	}
 }
 
-void SuffixArray::computeGnrSuffixArray(std::vector<uint64_t> &spos, 
-					std::vector<uint32_t> &sid, uint64_t n, bool debug) {
-	auto start = std::chrono::high_resolution_clock::now();
-	//memset(GSA, 0, sizeof(uint32_t) * (n + 2));
+void SuffixArray::fillGnrSuffixArray16(uint16_t *gsa, uint64_t *rev, std::vector<uint64_t> &spos, 
+					std::vector<uint32_t> &sid, uint64_t l, uint64_t r) {
 	uint64_t j = 0;
 	#pragma omp parallel for firstprivate(j)
-	for (uint64_t i = 0; i < n; i++) {
+	for (uint64_t i = l; i < r; i++) {
 		while (j < spos.size() && i >= spos[j])
 			j++;
-		GSA[REV[i]] = sid[j];
+		gsa[rev[i]] = sid[j];
 	}
-	GSA[n] = 0;
+}
+
+void SuffixArray::fillGnrSuffixArray32(uint32_t *gsa, uint64_t *rev, std::vector<uint64_t> &spos, 
+					std::vector<uint32_t> &sid, uint64_t l, uint64_t r) {
+	uint64_t j = 0;
+	#pragma omp parallel for firstprivate(j)
+	for (uint64_t i = l; i < r; i++) {
+		while (j < spos.size() && i >= spos[j])
+			j++;
+		gsa[rev[i]] = sid[j];
+	}
+}
+
+void SuffixArray::computeGnrSuffixArray16(std::vector<uint64_t> &spos, 
+					std::vector<uint32_t> &sid, uint64_t n, 
+					bool debug, bool work_in_buffer) {
+	auto start = std::chrono::high_resolution_clock::now();
+	
+	/* GSA will be stored in SA or buffer. */
+	std::string gsa_fn = "gsa.bin", sa_fn = "sa0.bin";
+	if (work_in_buffer) {
+		GSA16 = (uint16_t*) buffer;
+		fillGnrSuffixArray16(GSA16, REV, spos, sid, 0, n);
+		GSA16[n] = 0;
+		writeArray16(GSA16, n + 1, gsa_fn);
+	} else {
+		writeArray64((uint64_t *) SA, n / 4 + 1, sa_fn);
+		GSA16 = (uint16_t*) SA;	
+		fillGnrSuffixArray16(GSA16, REV, spos, sid, 0, n);
+		GSA16[n] = 0;
+		writeArray16(GSA16, n + 1, gsa_fn);
+		readArray64((uint64_t *) SA, n / 4 + 1, sa_fn);
+		if (remove("sa0.bin") == 0)
+			fprintf(stderr, "Deleted temp file sa0.bin.\n");
+		else
+			fprintf(stderr, "Error in deleting file sa0.bin.\n");
+	}
+	
 	if (debug) {
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 				(std::chrono::high_resolution_clock::now() - start).count();
@@ -74,36 +111,52 @@ void SuffixArray::computeGnrSuffixArray(std::vector<uint64_t> &spos,
 	}
 }
 
-void SuffixArray::computeLcpArray(uint8_t* s, uint64_t n, bool debug, bool print_avg) {
+void SuffixArray::computeGnrSuffixArray32(std::vector<uint64_t> &spos, 
+					std::vector<uint32_t> &sid, uint64_t n, 
+					bool debug, bool work_in_buffer) {
 	auto start = std::chrono::high_resolution_clock::now();
-	uint64_t totalLCP = 0;
-	double avgLCP = 0.0;
-	uint64_t len = 0;
-	//memset(LCP, 0, sizeof(uint16_t) * n);
-	if (print_avg == 0) {
-		#pragma omp parallel for firstprivate(len)
-		for (uint64_t i = 0; i < n; i++) {
-			//k: 0 - n - 1; SA: 0 - n - 1
-			uint64_t k = REV[i];
-			if (k == 0)
-				continue;
-			uint64_t j = SA[k - 1];
-			for(; i + len < n && j + len < n && s[i + len] == s[j + len]; len++);
-			LCP[k] = (len >= 0xFFull) ? UINT8_MAX : (uint8_t)(len & 0xFF);
-			if (len > 0) len--;
-		}
+
+	/* GSA will be stored in SA or buffer. */
+	std::string gsa_fn = "gsa.bin", sa_fn = "sa0.bin";
+	if (work_in_buffer) {
+		GSA32 = (uint32_t*) buffer;
+		fillGnrSuffixArray32(GSA32, REV, spos, sid, 0, n);
+		GSA32[n] = 0;
+		writeArray32(GSA32, n + 1, gsa_fn);
 	} else {
-		for (uint64_t i = 0; i < n; i++) {
-			//k: 0 - n - 1; SA: 0 - n - 1
-			uint64_t k = REV[i];
-			if (k == 0)
-				continue;
-			uint64_t j = SA[k - 1];
-			for(; i + len < n && j + len < n && s[i + len] == s[j + len]; len++);
-			totalLCP += len;
-			LCP[k] = (len >= 0xFFull) ? UINT8_MAX : (uint8_t)(len & 0xFF);
-			if (len > 0) len--;
-		}
+		writeArray64((uint64_t *) SA, n / 2 + 1, sa_fn);
+		GSA32 = (uint32_t*) SA;	
+		fillGnrSuffixArray32(GSA32, REV, spos, sid, 0, n);
+		GSA32[n] = 0;
+		writeArray32(GSA32, n + 1, gsa_fn);
+		readArray64((uint64_t *) SA, n / 2 + 1, sa_fn);
+		if (remove("sa0.bin") == 0)
+			fprintf(stderr, "Deleted temp file sa0.bin.\n");
+		else
+			fprintf(stderr, "Error in deleting file sa0.bin.\n");
+	}
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for computing generalized suffix array: %lu ms.\n", duration);
+	}
+}
+
+void SuffixArray::computeLcpArray(uint8_t *s, uint64_t n, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	uint64_t len = 0;
+	LCP = (uint16_t*) buffer;
+	//memset(LCP, 0, sizeof(uint16_t) * n);
+	#pragma omp parallel for firstprivate(len)
+	for (uint64_t i = 0; i < n; i++) {
+		//k: 0 - n - 1; SA: 0 - n - 1
+		uint64_t k = REV[i];
+		if (k == 0)
+			continue;
+		uint64_t j = SA[k - 1];
+		for(; i + len < n && j + len < n && s[i + len] == s[j + len]; len++);
+		LCP[k] = (len >= 0xFFFFull) ? UINT16_MAX : (uint16_t)(len & 0xFFFF);
+		if (len > 0) len--;
 	}
 	LCP[n] = 0;
 	if (debug) {
@@ -111,38 +164,91 @@ void SuffixArray::computeLcpArray(uint8_t* s, uint64_t n, bool debug, bool print
 				(std::chrono::high_resolution_clock::now() - start).count();
 		fprintf(stderr, "Time for computing LCP array: %lu ms.\n", duration);
 	}
-	if (print_avg) {
-		avgLCP = 1.0 * totalLCP / n;
-		fprintf(stderr, "The average LCP is %lf.\n", avgLCP);
+}
+
+void SuffixArray::computeAvgLcp(uint8_t* s, uint64_t n, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	uint64_t totalLCP = 0;
+	double avgLCP = 0.0;
+	uint64_t len = 0;
+	for (uint64_t i = 0; i < n; i++) {
+		//k: 0 - n - 1; SA: 0 - n - 1
+		uint64_t k = REV[i];
+		if (k == 0)
+			continue;
+		uint64_t j = SA[k - 1];
+		for(; i + len < n && j + len < n && s[i + len] == s[j + len]; len++);
+		totalLCP += len;
+		if (len > 0) len--;
+	}
+	avgLCP = 1.0 * totalLCP / n;
+	fprintf(stderr, "The average LCP is %lf.\n", avgLCP);
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for computing avg LCP: %lu ms.\n", duration);
 	}
 }
 
-void SuffixArray::computeGnrLcpArray(uint64_t n, bool debug) {
+void SuffixArray::prepareGnrLCP(uint64_t n, bool debug) {
 	auto start = std::chrono::high_resolution_clock::now();
-	//memset(LCP0, 0, sizeof(uint8_t) * (n + 2));
-	uint8_t minlcp = UINT8_MAX;
+
+	std::string gsa_fn = "gsa.bin";
+	if (gsa_unit_ == 32) {
+		readArray32((uint32_t *) REV, n + 1, gsa_fn);
+		GSA32 = (uint32_t *) REV;
+		GSA32_ = new uint32_t[n + 2];
+	} else {
+		readArray16((uint16_t *) REV, n + 1, gsa_fn);
+		GSA16 = (uint16_t *) REV;
+		GSA16_ = (uint16_t *) (REV + n / 4 + 2);
+	} 
+	if (remove("gsa.bin") == 0)
+		fprintf(stderr, "Deleted temp file gsa.bin.\n");
+	else
+		fprintf(stderr, "Error in deleting file gsa.bin.\n");
+
+	memcpy(REV + n / 2 + 4, LCP, (n + 1) * sizeof(uint16_t));
+	LCP = (uint16_t*) (REV + n / 2 + 4);
+	LCP0 = (uint16_t*) buffer;
+
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for resetting memory for LCP0 computation: %lu ms.\n", 
+			duration);
+	}
+}
+
+void SuffixArray::computeGnrLcpArray16(uint64_t n, uint16_t el, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	uint16_t minlcp = UINT16_MAX;
 	uint64_t nextd = 0, begin = 0, end = n - 1;
-	for (; GSA[end] == GSA[end - 1]; end--);
-	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT8_MAX, nextd = 0) {
-		for (; GSA[i + nextd] == GSA[i + nextd + 1]; nextd++);
+	for (; GSA16[end] == GSA16[end - 1]; end--);
+
+	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+		for (; GSA16[i + nextd] == GSA16[i + nextd + 1]; nextd++);
 		for (int64_t j = nextd; j >= 0; j--) {
 			minlcp = std::min(minlcp, LCP[i + j + 1]);
-			LCP0[i + j] = minlcp;
+			LCP0[i + j] = std::max(el, minlcp);
 		}
 	}
+
 	for (uint64_t i = end; i < n; i++)
 		LCP0[i] = 0;
-	minlcp = UINT8_MAX;
+	minlcp = UINT16_MAX;
 	nextd = 0;
-	for (end = 0; GSA[end] == GSA[end + 1]; end++);
+	for (end = 0; GSA16[end] == GSA16[end + 1]; end++);
 	begin = n - 1;
-	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT8_MAX, nextd = 0) {
-		for (; GSA[i - nextd] == GSA[i - nextd - 1]; nextd++);
+
+	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+		for (; GSA16[i - nextd] == GSA16[i - nextd - 1]; nextd++);
 		for (int64_t j = nextd; j >= 0; j--) {
 			minlcp = std::min(minlcp, LCP[i - j]);
 			LCP0[i - j] = std::max(LCP0[i - j], minlcp);
 		}
 	}
+
 	if (debug) {
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 				(std::chrono::high_resolution_clock::now() - start).count();
@@ -150,15 +256,15 @@ void SuffixArray::computeGnrLcpArray(uint64_t n, bool debug) {
 	}
 }
 
-void SuffixArray::computeGnrLcpArray_ext(uint64_t n, uint8_t el, bool debug) {
+void SuffixArray::computeGnrLcpArray32(uint64_t n, uint16_t el, bool debug) {
 	auto start = std::chrono::high_resolution_clock::now();
-	uint8_t minlcp = UINT8_MAX;
+	uint16_t minlcp = UINT16_MAX;
 	uint64_t nextd = 0, begin = 0, end = n - 1;
-	for (; GSA[end] == GSA[end - 1]; end--);
+	for (; GSA32[end] == GSA32[end - 1]; end--);
 
 	//#pragma omp parallel for
-	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT8_MAX, nextd = 0) {
-		for (; GSA[i + nextd] == GSA[i + nextd + 1]; nextd++);
+	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+		for (; GSA32[i + nextd] == GSA32[i + nextd + 1]; nextd++);
 		for (int64_t j = nextd; j >= 0; j--) {
 			minlcp = std::min(minlcp, LCP[i + j + 1]);
 			LCP0[i + j] = std::max(el, minlcp);
@@ -167,164 +273,80 @@ void SuffixArray::computeGnrLcpArray_ext(uint64_t n, uint8_t el, bool debug) {
 	
 	for (uint64_t i = end; i < n; i++)
 		LCP0[i] = 0;
-	minlcp = UINT8_MAX;
+	minlcp = UINT16_MAX;
 	nextd = 0;
-	for (end = 0; GSA[end] == GSA[end + 1]; end++);
+	for (end = 0; GSA32[end] == GSA32[end + 1]; end++);
 	begin = n - 1;
 	
 	//#pragma omp parallel for
-	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT8_MAX, nextd = 0) {
-		for (; GSA[i - nextd] == GSA[i - nextd - 1]; nextd++);
+	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+		for (; GSA32[i - nextd] == GSA32[i - nextd - 1]; nextd++);
 		for (int64_t j = nextd; j >= 0; j--) {
 			minlcp = std::min(minlcp, LCP[i - j]);
 			LCP0[i - j] = std::max(LCP0[i - j], minlcp);
 		}
 	} 
 
-	memset(occ, 1, sizeof(uint8_t) * (n + 2));
-	for (uint64_t i = begin; i > end; i -= (nextd + 1)) {
-		for (nextd = 0; GSA[i - nextd] == GSA[i - nextd - 1]; nextd++);
-		//occ[i] = 1;
-		if (nextd > 0) {
-			for (uint64_t j = 0; j <= nextd; j++) {
-				minlcp = UINT8_MAX;
-				for (int64_t j_ = j - 1; j_ >= 0; j_--) {
-					minlcp = std::min(minlcp, LCP[i - nextd + j_ + 1]);
-					if (minlcp > LCP0[i - nextd + j]) 
-						occ[SA[i - nextd + j]]++;
-				}
-				minlcp = UINT8_MAX;
-				for (uint64_t j_ = j + 1; j_ <= nextd; j_++) {
-					minlcp = std::min(minlcp, LCP[i - nextd + j_]);
-					if (minlcp > LCP0[i - nextd + j])
-						occ[SA[i - nextd + j]]++;
-				}
-			}
-		}
-	} 
-
 	if (debug) {
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 				(std::chrono::high_resolution_clock::now() - start).count();
-		fprintf(stderr, "Time for computing generalized LCP array: %lu ms.\n", duration);
+		fprintf(stderr, "Time for computing LCP0 array: %lu ms.\n", duration);
 	}
 }
 
-void SuffixArray::computeGnrLcpArray_d(uint64_t n, bool debug) {
+void SuffixArray::computeGnrLcpArray16_d(uint64_t n, uint16_t el, uint16_t ulmax, bool debug) {
 	auto start = std::chrono::high_resolution_clock::now();
-	uint8_t minlcp = UINT8_MAX;
+	uint16_t minlcp = UINT16_MAX;
 	uint64_t nextd = 0, begin = 0, end = n - 1;
-	for (; GSA[end] == GSA[end - 1]; end--);
-
-	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT8_MAX, nextd = 0) {
-		for (; GSA[i + nextd] == GSA[i + nextd + 1]; nextd++);
-		for (int64_t j = nextd; j >= 0; j--) {
-			minlcp = std::min(minlcp, LCP[i + j + 1]);
-			LCP0[i + j] = minlcp;
-		}
-	}
-	for (uint64_t i = end; i < n; i++)
-		LCP0[i] = 0;
-	minlcp = UINT8_MAX;
-	nextd = 0;
-	begin = n - 1;
-	for (end = 0; GSA[end] == GSA[end + 1]; end++);
-	for (; GSA[end] == GSA[end + 1]; end++);
-
-	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT8_MAX, nextd = 0) {
-		for (; GSA[i - nextd] == GSA[i - nextd - 1]; nextd++);
-		for (int64_t j = nextd; j >= 0; j--) {
-			minlcp = std::min(minlcp, LCP[i - j]);
-			if (LCP0[i - j] < minlcp) {
-				uint8_t min2lcp = UINT8_MAX;
-				uint64_t i_ = i - nextd - 1;
-				for (; GSA[i_] == GSA[i_ - 1]; i_--)	
-					 min2lcp = std::min(min2lcp, LCP[i_]);
-				min2lcp = std::min(min2lcp, LCP[i_]);
-				min2lcp = std::min(min2lcp, minlcp);
-				LCP0[i - j] = std::max(LCP0[i - j], min2lcp);
-			}
-			if (LCP0[i - j] > minlcp) {
-				uint8_t min2lcp = UINT8_MAX;
-				uint64_t i_ = i;
-				for (; GSA[i_] == GSA[i_ + 1] && i_ < n; i_++)
-					min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-				min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-				for (i_ = i_ + 1; GSA[i_] == GSA[i_ + 1] && i_ < n; i_++)
-					min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-				min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-				LCP0[i - j] = std::max(minlcp, min2lcp);
-			}
-				
-			//LCP0[i - j] = std::min(LCP0[i - j], minlcp);
-		}
-	}
-	/*for (uint64_t i = 10080737490; i < 10080737500; i++) {
-		fprintf(stderr, "i: %lu; LCP0[i]: %u\n", i, LCP0[i]);
-	}*/
+	for (; GSA16[end] == GSA16[end - 1]; end--);
+	memset(GSA16_, 0, sizeof(uint16_t) * (n + 1));
 	
-	if (debug) {
-		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
-				(std::chrono::high_resolution_clock::now() - start).count();
-		fprintf(stderr, "Time for computing generalized LCP array: %lu ms.\n", duration);
-	}
-}
-
-void SuffixArray::computeGnrLcpArray_dext(uint64_t n, uint8_t el, uint8_t ulmax, bool debug) {
-	auto start = std::chrono::high_resolution_clock::now();
-	uint8_t minlcp = UINT8_MAX;
-	uint64_t nextd = 0, begin = 0, end = n - 1;
-	for (; GSA[end] == GSA[end - 1]; end--);
-	//fprintf(stderr, "ulmax: %u\n", ulmax);
-	memset(GSA2, 0, sizeof(uint32_t) * (n + 2));
-
-	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT8_MAX, nextd = 0) {
-		for (; GSA[i + nextd] == GSA[i + nextd + 1]; nextd++);
+	//#pragma omp parallel for
+	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+		for (; GSA16[i + nextd] == GSA16[i + nextd + 1]; nextd++);
 		for (int64_t j = nextd; j >= 0; j--) {
 			minlcp = std::min(minlcp, LCP[i + j + 1]);
 			LCP0[i + j] = minlcp;
-			GSA2[SA[i + j]] = GSA[i + nextd + 1];
+			GSA16_[SA[i + j]] = GSA16[i + nextd + 1];
 		}
 	}
+
 	for (uint64_t i = end; i < n; i++)
 		LCP0[i] = 0;
-	minlcp = UINT8_MAX;
+	minlcp = UINT16_MAX;
 	nextd = 0;
 	begin = n - 1;
-	for (end = 0; GSA[end] == GSA[end + 1]; end++);
-	for (; GSA[end] == GSA[end + 1]; end++);
+	for (end = 0; GSA16[end] == GSA16[end + 1]; end++);
+	for (; GSA16[end] == GSA16[end + 1]; end++);
 
-	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT8_MAX, nextd = 0) {
-		for (; GSA[i - nextd] == GSA[i - nextd - 1]; nextd++);
+	//#pragma omp parallel for
+	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+		for (; GSA16[i - nextd] == GSA16[i - nextd - 1]; nextd++);
 		for (int64_t j = nextd; j >= 0; j--) {
 			minlcp = std::min(minlcp, LCP[i - j]);
 			if (LCP0[i - j] < minlcp) {
-				uint8_t min2lcp = UINT8_MAX;
+				uint16_t min2lcp = UINT16_MAX;
 				uint64_t i_ = i - nextd - 1;
-				for (; GSA[i_] == GSA[i_ - 1]; i_--)	
+				for (; GSA16[i_] == GSA16[i_ - 1]; i_--)	
 					 min2lcp = std::min(min2lcp, LCP[i_]);
 				min2lcp = std::min(min2lcp, LCP[i_]);
 				min2lcp = std::min(min2lcp, minlcp);
-				//if (i > 10000000 && i < 10000100)
-				//	fprintf(stderr, "LCP[%lu] = %u; minlcp = %u; min2lcp = %u\n", i - j, LCP0[i - j], minlcp, min2lcp);
 				LCP0[i - j] = std::max(LCP0[i - j], min2lcp);
 				LCP0[i - j] = std::max(LCP0[i - j], el);
-				GSA2[SA[i - j]] = GSA[i - nextd - 1];
+				GSA16_[SA[i - j]] = GSA16[i - nextd - 1];
 				if (LCP0[i - j] >= minlcp)
 					LCP0[i - j] = ulmax + 2;
-				//if (i > 10000000 & i < 10000100)
-				//	fprintf(stderr, "LCP[%lu] = %u\n", i - j, LCP0[i - j]);
 			} else {
 				if (LCP0[i - j] > minlcp) {
-					uint8_t min2lcp = UINT8_MAX;
+					uint16_t min2lcp = UINT16_MAX;
 					uint64_t i_ = i;
-					for (; GSA[i_] == GSA[i_ + 1] && i_ < n; i_++)
+					for (; GSA16[i_] == GSA16[i_ + 1] && i_ < n; i_++)
 						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
 					min2lcp = std::min(min2lcp, LCP[i_ + 1]); 
-					for (i_ = i_ + 1; GSA[i_] == GSA[i_ + 1] && i_ < n; i_++)
+					for (i_ = i_ + 1; GSA16[i_] == GSA16[i_ + 1] && i_ < n; i_++)
 						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
 					min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-					uint8_t lcp0 = std::max(minlcp, min2lcp);
+					uint16_t lcp0 = std::max(minlcp, min2lcp);
 					lcp0 = std::max(lcp0, el);
 					if (lcp0 >= LCP0[i - j])
 						LCP0[i - j] = ulmax + 2;
@@ -336,55 +358,95 @@ void SuffixArray::computeGnrLcpArray_dext(uint64_t n, uint8_t el, uint8_t ulmax,
 		}
 	}
 
-	memset(occ, 0, sizeof(uint8_t) * (n + 2));
-	memset(occ2, 0, sizeof(uint8_t) * (n + 2));
-	for (uint64_t i = begin; i > end; i--) {
-		if (LCP0[i] <= ulmax) {
-			occ[SA[i]] = 1;
-			minlcp = UINT8_MAX;
-			for (uint64_t j = 0; (i - j > end) && ((GSA[i - j - 1] == GSA[i]) || (GSA[i - j - 1] == GSA2[SA[i]])); j++) {
-				minlcp = std::min(minlcp, LCP[i - j]);
-				if (minlcp > LCP0[i]) {
-					if (GSA[i - j - 1] == GSA[i])
-						occ[SA[i]]++;
-					if (GSA[i - j - 1] == GSA2[SA[i]])
-						occ2[SA[i]]++;
-				}
-			}
-			minlcp = UINT8_MAX;
-			for (uint64_t j = 0; (i + j <= begin) && ((GSA[i + j + 1] == GSA[i]) || (GSA[i + j + 1] == GSA2[SA[i]])); j++) {
-				minlcp = std::min(minlcp, LCP[i + j + 1]);
-				if (minlcp > LCP0[i]) {
-					if (GSA[i + j + 1] == GSA[i])
-						occ[SA[i]]++;
-					if (GSA[i + j + 1] == GSA2[SA[i]])
-						occ2[SA[i]]++;				
-				}
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for computing LCP0-D array: %lu ms.\n", duration);
+	}
+}
+
+void SuffixArray::computeGnrLcpArray32_d(uint64_t n, uint16_t el, uint16_t ulmax, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	uint16_t minlcp = UINT16_MAX;
+	uint64_t nextd = 0, begin = 0, end = n - 1;
+	for (; GSA32[end] == GSA32[end - 1]; end--);
+	memset(GSA32_, 0, sizeof(uint32_t) * (n + 2));
+	
+	//#pragma omp parallel for
+	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+		for (; GSA32[i + nextd] == GSA32[i + nextd + 1]; nextd++);
+		for (int64_t j = nextd; j >= 0; j--) {
+			minlcp = std::min(minlcp, LCP[i + j + 1]);
+			LCP0[i + j] = minlcp;
+			GSA32_[SA[i + j]] = GSA32[i + nextd + 1];
+		}
+	}
+
+	for (uint64_t i = end; i < n; i++)
+		LCP0[i] = 0;
+	minlcp = UINT16_MAX;
+	nextd = 0;
+	begin = n - 1;
+	for (end = 0; GSA32[end] == GSA32[end + 1]; end++);
+	for (; GSA32[end] == GSA32[end + 1]; end++);
+
+	//#pragma omp parallel for
+	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+		for (; GSA32[i - nextd] == GSA32[i - nextd - 1]; nextd++);
+		for (int64_t j = nextd; j >= 0; j--) {
+			minlcp = std::min(minlcp, LCP[i - j]);
+			if (LCP0[i - j] < minlcp) {
+				uint16_t min2lcp = UINT16_MAX;
+				uint64_t i_ = i - nextd - 1;
+				for (; GSA32[i_] == GSA32[i_ - 1]; i_--)	
+					 min2lcp = std::min(min2lcp, LCP[i_]);
+				min2lcp = std::min(min2lcp, LCP[i_]);
+				min2lcp = std::min(min2lcp, minlcp);
+				LCP0[i - j] = std::max(LCP0[i - j], min2lcp);
+				LCP0[i - j] = std::max(LCP0[i - j], el);
+				GSA32_[SA[i - j]] = GSA32[i - nextd - 1];
+				if (LCP0[i - j] >= minlcp)
+					LCP0[i - j] = ulmax + 2;
+			} else {
+				if (LCP0[i - j] > minlcp) {
+					uint16_t min2lcp = UINT16_MAX;
+					uint64_t i_ = i;
+					for (; GSA32[i_] == GSA32[i_ + 1] && i_ < n; i_++)
+						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+					min2lcp = std::min(min2lcp, LCP[i_ + 1]); 
+					for (i_ = i_ + 1; GSA32[i_] == GSA32[i_ + 1] && i_ < n; i_++)
+						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+					min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+					uint16_t lcp0 = std::max(minlcp, min2lcp);
+					lcp0 = std::max(lcp0, el);
+					if (lcp0 >= LCP0[i - j])
+						LCP0[i - j] = ulmax + 2;
+					else
+						LCP0[i - j] = lcp0;
+				} else
+					LCP0[i - j] = ulmax + 2;
 			}
 		}
 	}
- 
-	//for (uint64_t i = 10000000; i <= 10000050; i++)
-	//	fprintf(stderr, "i = %lu; GSA[i] = %u; LCP[i] = %u; LCP0[i] = %u; GSA2[i] = %u; occ[i] = %u; occ2[i] = %u\n", i, 
-	//		GSA[i], LCP[i], LCP0[i], GSA2[SA[i]], occ[SA[i]], occ2[SA[i]]);
 
 	if (debug) {
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 				(std::chrono::high_resolution_clock::now() - start).count();
-		fprintf(stderr, "Time for computing generalized LCP array: %lu ms.\n", duration);
+		fprintf(stderr, "Time for computing LCP0-D array: %lu ms.\n", duration);
 	}
 }
 
-
 void SuffixArray::computeMinUnique(uint64_t n, bool debug) {
 	auto start = std::chrono::high_resolution_clock::now();
-	uint64_t *MU = REV;
-	memset(MU, 0, sizeof(uint64_t) * (n + 2));
+	uint16_t *MU = LCP;
+	memset(MU, UINT8_MAX, sizeof(uint16_t) * (n + 1));
+
 	#pragma omp parallel for
 	for (uint64_t i = 0; i < n; i++) {
 		uint64_t SA_i = SA[i];
-		MU[SA_i + LCP0[i] + 1] = std::max(MU[SA_i + LCP0[i] + 1], SA_i + 1);
+		MU[SA_i + LCP0[i] + 1] = std::min(MU[SA_i + LCP0[i] + 1], LCP0[i]);
 	}
+
 	if (debug) {
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 				(std::chrono::high_resolution_clock::now() - start).count();
@@ -392,31 +454,320 @@ void SuffixArray::computeMinUnique(uint64_t n, bool debug) {
 	}
 }
 
-uint64_t* SuffixArray::run(uint8_t* s, std::vector<uint64_t> &spos, 
+void SuffixArray::computeMinUnique(uint64_t n, uint16_t ulmax, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	uint16_t *MU = LCP;
+	memset(MU, UINT8_MAX, sizeof(uint16_t) * (n + 1));
+
+	#pragma omp parallel for
+	for (uint64_t i = 0; i < n; i++) {
+		//if (SA[i] + LCP0[i] + 1 > n)
+		//	fprintf(stderr, "%lu, %ld, %lu, %u\n", i, SA[i], SA[i] + LCP0[i] + 1, LCP0[i]);
+		uint64_t SA_i = SA[i];
+		if (LCP0[i] < ulmax)
+			MU[SA_i + LCP0[i] + 1] = std::min(MU[SA_i + LCP0[i] + 1], LCP0[i]);
+	}
+
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for computing minimum unique substrings: %lu ms.\n", duration);
+	}
+}
+
+void SuffixArray::computeOCC16(uint64_t n, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	occ = (uint8_t*) (REV + 3 * n / 4 + 6);
+	memset(occ, 1, sizeof(uint8_t) * (n + 1));
+	
+	uint16_t minlcp = UINT16_MAX;
+	uint64_t nextd = 0, begin = n - 1, end = 0;
+	for (; GSA16[end] == GSA16[end + 1]; end++);
+	//#pragma omp parallel for
+	for (uint64_t i = begin; i > end; i -= (nextd + 1)) {
+		for (nextd = 0; GSA16[i - nextd] == GSA16[i - nextd - 1]; nextd++);
+		//occ[i] = 1;
+		if (nextd > 0) {
+			for (uint64_t j = 0; j <= nextd; j++) {
+				minlcp = UINT16_MAX;
+				for (int64_t j_ = j - 1; j_ >= 0; j_--) {
+					minlcp = std::min(minlcp, LCP[i - nextd + j_ + 1]);
+					if (minlcp > LCP0[i - nextd + j]) 
+						occ[SA[i - nextd + j]]++;
+				}
+				minlcp = UINT16_MAX;
+				for (uint64_t j_ = j + 1; j_ <= nextd; j_++) {
+					minlcp = std::min(minlcp, LCP[i - nextd + j_]);
+					if (minlcp > LCP0[i - nextd + j])
+						occ[SA[i - nextd + j]]++;
+				}
+			}
+		}
+	}
+
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for computing OCC array: %lu ms.\n", duration);
+	} 
+}
+
+void SuffixArray::computeOCC32(uint64_t n, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	occ = (uint8_t*) (REV + 3 * n / 4 + 6);
+	memset(occ, 1, sizeof(uint8_t) * (n + 1));
+	
+	uint16_t minlcp = UINT16_MAX;
+	uint64_t nextd = 0, begin = n - 1, end = 0;
+	for (; GSA32[end] == GSA32[end + 1]; end++);
+	//#pragma omp parallel for
+	for (uint64_t i = begin; i > end; i -= (nextd + 1)) {
+		for (nextd = 0; GSA32[i - nextd] == GSA32[i - nextd - 1]; nextd++);
+		//occ[i] = 1;
+		if (nextd > 0) {
+			for (uint64_t j = 0; j <= nextd; j++) {
+				minlcp = UINT16_MAX;
+				for (int64_t j_ = j - 1; j_ >= 0; j_--) {
+					minlcp = std::min(minlcp, LCP[i - nextd + j_ + 1]);
+					if (minlcp > LCP0[i - nextd + j]) 
+						occ[SA[i - nextd + j]]++;
+				}
+				minlcp = UINT16_MAX;
+				for (uint64_t j_ = j + 1; j_ <= nextd; j_++) {
+					minlcp = std::min(minlcp, LCP[i - nextd + j_]);
+					if (minlcp > LCP0[i - nextd + j])
+						occ[SA[i - nextd + j]]++;
+				}
+			}
+		}
+	}
+
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for computing OCC array: %lu ms.\n", duration);
+	} 
+}
+
+void SuffixArray::computeOCC16_d(uint64_t n, uint16_t ulmax, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	occ = (uint8_t*) (REV + 3 * n / 4 + 6);
+	occ2 = occ + n + 2;
+	memset(occ, 0, sizeof(uint8_t) * (n + 1));
+	memset(occ2, 0, sizeof(uint8_t) * (n + 1));
+
+	uint16_t minlcp = UINT16_MAX;
+	uint64_t begin = n - 1, end = 0;
+	for (; GSA16[end] == GSA16[end + 1]; end++);
+	for (; GSA16[end] == GSA16[end + 1]; end++);
+	//#pragma omp parallel for
+	for (uint64_t i = begin; i > end; i--) {
+		if (LCP0[i] <= ulmax) {
+			occ[SA[i]] = 1;
+			minlcp = UINT16_MAX;
+			for (uint64_t j = 0; (i - j > end) && ((GSA16[i - j - 1] == GSA16[i]) 
+					|| (GSA16[i - j - 1] == GSA16_[SA[i]])); j++) {
+				minlcp = std::min(minlcp, LCP[i - j]);
+				if (minlcp > LCP0[i]) {
+					if (GSA16[i - j - 1] == GSA16[i])
+						occ[SA[i]]++;
+					if (GSA16[i - j - 1] == GSA16_[SA[i]])
+						occ2[SA[i]]++;
+				}
+			}
+			minlcp = UINT16_MAX;
+			for (uint64_t j = 0; (i + j <= begin) && ((GSA16[i + j + 1] == GSA16[i]) 
+					|| (GSA16[i + j + 1] == GSA16_[SA[i]])); j++) {
+				minlcp = std::min(minlcp, LCP[i + j + 1]);
+				if (minlcp > LCP0[i]) {
+					if (GSA16[i + j + 1] == GSA16[i])
+						occ[SA[i]]++;
+					if (GSA16[i + j + 1] == GSA16_[SA[i]])
+						occ2[SA[i]]++;				
+				}
+			}
+		}
+	}
+
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for computing OCC array: %lu ms.\n", duration);
+	}
+}
+
+void SuffixArray::computeOCC32_d(uint64_t n, uint16_t ulmax, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	occ = (uint8_t*) (REV + 3 * n / 4 + 6);
+	occ2 = occ + n + 2;
+	memset(occ, 0, sizeof(uint8_t) * (n + 1));
+	memset(occ2, 0, sizeof(uint8_t) * (n + 1));
+
+	uint16_t minlcp = UINT16_MAX;
+	uint64_t begin = n - 1, end = 0;
+	for (end = 0; GSA32[end] == GSA32[end + 1]; end++);
+	for (; GSA32[end] == GSA32[end + 1]; end++);
+	#pragma omp parallel for
+	for (uint64_t i = begin; i > end; i--) {
+		if (LCP0[i] <= ulmax) {
+			occ[SA[i]] = 1;
+			minlcp = UINT16_MAX;
+			for (uint64_t j = 0; (i - j > end) && ((GSA32[i - j - 1] == GSA32[i]) 
+					|| (GSA32[i - j - 1] == GSA32_[SA[i]])); j++) {
+				minlcp = std::min(minlcp, LCP[i - j]);
+				if (minlcp > LCP0[i]) {
+					if (GSA32[i - j - 1] == GSA32[i])
+						occ[SA[i]]++;
+					if (GSA32[i - j - 1] == GSA32_[SA[i]])
+						occ2[SA[i]]++;
+				}
+			}
+			minlcp = UINT16_MAX;
+			for (uint64_t j = 0; (i + j <= begin) && ((GSA32[i + j + 1] == GSA32[i]) 
+					|| (GSA32[i + j + 1] == GSA32_[SA[i]])); j++) {
+				minlcp = std::min(minlcp, LCP[i + j + 1]);
+				if (minlcp > LCP0[i]) {
+					if (GSA32[i + j + 1] == GSA32[i])
+						occ[SA[i]]++;
+					if (GSA32[i + j + 1] == GSA32_[SA[i]])
+						occ2[SA[i]]++;				
+				}
+			}
+		}
+	}
+
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for computing OCC array: %lu ms.\n", duration);
+	}
+}
+
+void SuffixArray::readArray64(uint64_t *arr, uint64_t n, std::string &fn) {
+	std::ifstream istream;
+	try { 
+		istream.open(fn.c_str(), std::ios::in | std::ios::binary);
+		istream.read((char*) arr, n * sizeof(uint64_t));
+		istream.close();
+	} catch (std::ifstream::failure e) {
+		fprintf(stderr, "Error in reading array %s.\n", fn.c_str());
+	}
+}
+
+void SuffixArray::readArray32(uint32_t *arr, uint64_t n, std::string &fn) {
+	std::ifstream istream;
+	try { 
+		istream.open(fn.c_str(), std::ios::in | std::ios::binary);
+		istream.read((char*) arr, n * sizeof(uint32_t));
+		istream.close();
+	} catch (std::ifstream::failure e) {
+		fprintf(stderr, "Error in reading array %s.\n", fn.c_str());
+	}
+}
+
+void SuffixArray::readArray16(uint16_t *arr, uint64_t n, std::string &fn) {
+	std::ifstream istream;
+	try { 
+		istream.open(fn.c_str(), std::ios::in | std::ios::binary);
+		istream.read((char*) arr, n * sizeof(uint16_t));
+		istream.close();
+	} catch (std::ifstream::failure e) {
+		fprintf(stderr, "Error in reading array %s.\n", fn.c_str());
+	}
+}
+
+void SuffixArray::writeArray64(uint64_t *arr, uint64_t n, std::string &fn) {
+	std::ofstream ostream;
+	try { 
+		ostream.open(fn.c_str(), std::ios::out | std::ios::binary);
+		ostream.write((char*) arr, n * sizeof(uint64_t));
+		ostream.close();
+	} catch (std::ofstream::failure e) {
+		fprintf(stderr, "Error in writing array %s.\n", fn.c_str());
+	}
+}
+
+void SuffixArray::writeArray32(uint32_t *arr, uint64_t n, std::string &fn) {
+	std::ofstream ostream;
+	try { 
+		ostream.open(fn.c_str(), std::ios::out | std::ios::binary);
+		ostream.write((char*) arr, n * sizeof(uint32_t));
+		ostream.close();
+	} catch (std::ofstream::failure e) {
+		fprintf(stderr, "Error in writing array %s.\n", fn.c_str());
+	}
+}
+
+void SuffixArray::writeArray16(uint16_t *arr, uint64_t n, std::string &fn) {
+	std::ofstream ostream;
+	try { 
+		ostream.open(fn.c_str(), std::ios::out | std::ios::binary);
+		ostream.write((char*) arr, n * sizeof(uint16_t));
+		ostream.close();
+	} catch (std::ofstream::failure e) {
+		fprintf(stderr, "Error in writing array %s.\n", fn.c_str());
+	}
+}
+
+uint16_t* SuffixArray::run(uint8_t* s, std::vector<uint64_t> &spos, 
 				std::vector<uint32_t> &sid, uint64_t n, int mode, 
-				uint8_t ulmax, uint8_t el, bool debug,
-				bool debug_sa, bool print_avg) {
+				uint16_t ulmax, uint16_t el, bool debug, bool debug_sa) {
 	switch (mode) {
 		case 0:
 			computeSuffixArray(s, n, debug, debug_sa);
 			computeRevSuffixArray(n, debug);
-			computeGnrSuffixArray(spos, sid, n, debug);
-			computeLcpArray(s, n, debug, print_avg);
+			allocBuffer(n / 4 + 2);
+			if (gsa_unit_ == 32)
+				computeGnrSuffixArray32(spos, sid, n, debug, 0);
+			else
+				computeGnrSuffixArray16(spos, sid, n, debug, 1);
+			computeLcpArray(s, n, debug);
 			return NULL;
 		case 1:
-			computeGnrLcpArray(n, debug);
+			prepareGnrLCP(n, debug);
+			if (gsa_unit_ == 32) {
+				computeGnrLcpArray32(n, el, debug);
+				computeOCC32(n, debug);
+			} else {
+				computeGnrLcpArray16(n, el, debug);
+				computeOCC16(n, debug);
+			}
+			computeMinUnique(n, debug);
 			break;
 		case 2:
-			computeGnrLcpArray_d(n, debug);
-			break;
-		case 3:
-			computeGnrLcpArray_ext(n, el, debug);
-			break;
-		case 4:
-			computeGnrLcpArray_dext(n, el, ulmax, debug);
+			prepareGnrLCP(n, debug);
+			if (gsa_unit_ == 32) {
+				computeGnrLcpArray32_d(n, el, ulmax, debug);
+				computeOCC32_d(n, ulmax, debug);
+			} else {
+				computeGnrLcpArray16_d(n, el, ulmax, debug);
+				computeOCC16_d(n, ulmax, debug);
+			}
+			computeMinUnique(n, ulmax, debug);
 			break;
 	}
-
-	computeMinUnique(n, debug);
-	return REV;
+	
+	return LCP;
 }
+
+/*
+	#pragma omp parallel
+	{
+		int threadnum = omp_get_thread_num(), 
+			numthreads = omp_get_num_threads();
+		uint64_t l = std::max(end, n * threadnum / numthreads), 
+			r = n * (threadnum + 1) / numthreads;
+		if (r == n)
+			r = begin;
+		else
+			for (; GSA16[r] == GSA16[r + 1]; r++);
+
+		for (uint64_t i = r; i > l; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+			for (; GSA16[i - nextd] == GSA16[i - nextd - 1]; nextd++);
+			for (int64_t j = nextd; j >= 0; j--) {
+				minlcp = std::min(minlcp, LCP[i - j]);
+				LCP0[i - j] = std::max(LCP0[i - j], minlcp);
+			}
+		}
+	}
+*/

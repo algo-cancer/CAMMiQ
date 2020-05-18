@@ -28,6 +28,7 @@ class FastaReader {
 		uint64_t N_ = 0;
 		uint32_t M_ = 0;
 		uint32_t C_ = 0;
+		int max_rid = 0;
 		
 		//new: keep the positions
 		//uint32_t ci_inserted = 0;
@@ -44,14 +45,18 @@ class FastaReader {
 		std::vector<uint64_t> ref_pos;
 		std::vector<uint32_t> refID;
 		std::vector<bool> exist_unique_;
-		uint64_t *mu_index = NULL;
+		uint16_t *mu_index = NULL;
 
 		/* */
 		SuffixArray* sa = NULL;
+		uint8_t *occ = NULL;
+		uint8_t *occ2 = NULL;
+		uint32_t *GSA2 = NULL;
+		uint16_t *GSA2_ = NULL;
 		std::unordered_map<std::string, uint32_t> filenames;
 
 		/* */
-		int num_locks = 256;
+		int num_locks = 1;
 		std::vector<pthread_spinlock_t*> hasht_access;
 		uint32_t HASH_LEN_ = 12;
 		Hash *hasht = NULL;
@@ -102,9 +107,9 @@ class FastaReader {
 		void* computeIndexmin_d();
 		static void *computeIndex_t(void *obj) {
 			switch (mode_) {
-				case 2:
+				case 1:
 					return ((FastaReader*) obj)->computeIndexmin();
-				case 4:
+				case 2:
 					return ((FastaReader*) obj)->computeIndexmin_d();
 				default:
 					return ((FastaReader*) obj)->computeIndexmin();
@@ -119,11 +124,11 @@ class FastaReader {
 		void computeIndex(int);
 		//void analIndex(int, int);
 		//void outputRefLength();
-		void insert32(uint64_t, uint32_t, uint32_t, uint8_t*);
-		void insert32_d(uint64_t, uint32_t, uint32_t, uint32_t*, uint8_t*, uint8_t*);
+		void insert32(uint64_t, uint32_t, uint32_t, uint8_t);
+		void insert32_d(uint64_t, uint32_t, uint32_t, uint32_t, uint8_t, uint8_t);
 		//void try_increase_cnt_32(uint64_t, uint32_t, uint32_t);
-		void insert64(uint64_t, uint32_t, uint32_t, uint8_t*);
-		void insert64_d(uint64_t, uint32_t, uint32_t, uint32_t*, uint8_t*, uint8_t*);
+		void insert64(uint64_t, uint32_t, uint32_t, uint8_t);
+		void insert64_d(uint64_t, uint32_t, uint32_t, uint32_t, uint8_t, uint8_t);
 
 		void setNumLocks(int);
 		void setHashLength(uint32_t);

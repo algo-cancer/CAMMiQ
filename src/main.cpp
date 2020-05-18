@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <cstdlib>
+#include <omp.h>
 
 #include "util.hpp"
 #include "build.hpp"
@@ -150,7 +151,8 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Please specify the worker threads number.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			t = atoi(argv[i]); 
+			t = atoi(argv[i]);
+			omp_set_num_threads(t); 
 			continue;
 		}
 		if (val == "-f") {
