@@ -25,6 +25,7 @@ class SuffixArray {
 
 		/* Longest common prefix array to compute. */
 		uint16_t *LCP0 = NULL;
+		bool lcp_prepared__ = 0;
 		
 	public:
 		uint8_t *occ = NULL;
@@ -69,6 +70,7 @@ class SuffixArray {
 		void computeAvgLcp(uint8_t*, uint64_t, bool);
 		void computeLcpArray(uint8_t*, uint64_t, bool);
 		void prepareGnrLCP(uint64_t, bool);
+		void reloadLCP(uint64_t, bool);
 		void computeGnrLcpArray16(uint64_t, uint16_t, bool);
 		void computeGnrLcpArray32(uint64_t, uint16_t, bool);
 		void computeGnrLcpArray16_d(uint64_t, uint16_t, uint16_t, bool);
@@ -93,7 +95,7 @@ class SuffixArray {
 		
 		/* Interface. */
 		uint16_t* run(uint8_t*, std::vector<uint64_t>&, std::vector<uint32_t>&, 
-				uint64_t, int, uint16_t, uint16_t, bool, bool);
+				uint64_t, int, uint16_t, uint16_t, bool, bool, bool);
 };
 
 #endif

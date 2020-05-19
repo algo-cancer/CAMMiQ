@@ -271,14 +271,14 @@ void FastaReader::allocSuffixArray(int doubly_unique) {
 				sa = new SuffixArray(N, 32);
 			else
 				sa = new SuffixArray(N, 16);
-			sa->run(seqs_, ref_pos, refID, N, 0, L, 0, 1, 0);
+			sa->run(seqs_, ref_pos, refID, N, 0, L, 0, 1, 0, 0);
 			return;
 		case 1:
-			mu_index = sa->run(seqs_, ref_pos, refID, N, 1, L, minuL - 1, 1, 0);
+			mu_index = sa->run(seqs_, ref_pos, refID, N, 1, L, minuL - 1, 1, 0, 0);
 			occ = sa->occ;
 			return;
 		case 2:
-			mu_index = sa->run(seqs_, ref_pos, refID, N, 2, L, minuL - 1, 1, 0);
+			mu_index = sa->run(seqs_, ref_pos, refID, N, 2, L, minuL - 1, 1, 0, 0);
 			occ = sa->occ;
 			occ2 = sa->occ2;
 			if (max_rid > 0xFFFE)
@@ -286,43 +286,39 @@ void FastaReader::allocSuffixArray(int doubly_unique) {
 			else
 				GSA2_ = sa->GSA16_;
 			return;
+		case 3:
+			mu_index = sa->run(seqs_, ref_pos, refID, N, 1, L, minuL - 1, 1, 0, 1);
+			occ = sa->occ;
+			return;
 	}	
 }
 
 void FastaReader::insert32(uint64_t i, uint32_t length, uint32_t rid, uint8_t occ) {
 	uint32_t bucket = hasht->computeHashVal(seqs_ + i);
-	int lock_num = ((int) bucket) & (num_locks - 1);
-	pthread_spin_lock(hasht_access[lock_num]);
+	pthread_spin_lock(hasht_access);
 	hasht->insert32(bucket, seqs_ + i, length, rid, occ);
-	pthread_spin_unlock(hasht_access[lock_num]);
+	pthread_spin_unlock(hasht_access);
 }
 
 void FastaReader::insert32_d(uint64_t i, uint32_t length, uint32_t rid, uint32_t rid2, uint8_t occ, uint8_t occ2) {
 	uint32_t bucket = hasht->computeHashVal(seqs_ + i);
-	int lock_num = ((int) bucket) & (num_locks - 1);
-	pthread_spin_lock(hasht_access[lock_num]);
+	pthread_spin_lock(hasht_access);
 	hasht->insert32_d(bucket, seqs_ + i, length, rid, occ, rid2, occ2);
-	pthread_spin_unlock(hasht_access[lock_num]);
+	pthread_spin_unlock(hasht_access);
 }
 
 void FastaReader::insert64(uint64_t i, uint32_t length, uint32_t rid, uint8_t occ) {
 	uint64_t bucket = hasht->computeHashVal64(seqs_ + i);
-	int lock_num = ((int) bucket) & (num_locks - 1);
-	pthread_spin_lock(hasht_access[lock_num]);
-	//fprintf(stderr, "Inserted %lu, %u, %u, %u\n", i, length, rid, occ);
+	pthread_spin_lock(hasht_access);
 	hasht->insert64(bucket, seqs_ + i, length, rid, occ);
-	pthread_spin_unlock(hasht_access[lock_num]);
+	pthread_spin_unlock(hasht_access);
 }
 
 void FastaReader::insert64_d(uint64_t i, uint32_t length, uint32_t rid, uint32_t rid2, uint8_t occ, uint8_t occ2) {
 	uint64_t bucket = hasht->computeHashVal64(seqs_ + i);
-	int lock_num = ((int) bucket) & (num_locks - 1);
-	pthread_spin_lock(hasht_access[lock_num]);
-	//for (int j = 0; j < length; j++)
-	//	fprintf(stderr, "%c", (seqs_ + i)[j] - 165);
-	//fprintf(stderr, "Inserted %lu, %u, %u, %u, %u, %u\n", i, length, rid, rid2, occ, occ2);
+	pthread_spin_lock(hasht_access);
 	hasht->insert64_d(bucket, seqs_ + i, length, rid, occ, rid2, occ2);
-	pthread_spin_unlock(hasht_access[lock_num]);
+	pthread_spin_unlock(hasht_access);
 }	
 
 void* FastaReader::computeIndexmin() {
@@ -330,8 +326,8 @@ void* FastaReader::computeIndexmin() {
 	pthread_mutex_lock(&thread_lock);
 	tid = current_tid++;
 	pthread_mutex_unlock(&thread_lock);
-	fprintf(stderr, "L: %d; maxuL: %d\n", L, maxuL);
-	fprintf(stderr, "Begin computing unique substrings by thread %d.\n", tid + 1);
+	//fprintf(stderr, "L: %d; maxuL: %d\n", L, maxuL);
+	//fprintf(stderr, "Begin computing unique substrings by thread %d.\n", tid + 1);
 
 	uint64_t i = 1, j = 0, nexti = 1, start = 0;
 	size_t nref = ref_pos.size() / num_threads;
@@ -349,9 +345,6 @@ void* FastaReader::computeIndexmin() {
 			continue;
 		}
 		j = i - mu_index[i];
-		//if (i < 10000)
-		//fprintf(stderr, "i: %lu; j: %lu.\n", i, j);
-		
 
 		// Reached a separation region between two contigs.
 		if (i >= contig_pos[ci] - 4) {
@@ -401,8 +394,6 @@ void* FastaReader::computeIndexmin() {
 
 		// Index: minimum # unique substrings that cover every unique L-mer.
 		if ((i > start_ + L) && (lastl > 0)) {
-			//if (i == 396812)
-			//	fprintf()
 			if (HASH_LEN_ < 16)
 				insert32(lastj - 1, lastl, refID[lastr], occ[lastj - 1]);
 			else
@@ -433,8 +424,8 @@ void* FastaReader::computeIndexmin_d() {
 	pthread_mutex_lock(&thread_lock);
 	tid = current_tid++;
 	pthread_mutex_unlock(&thread_lock);
-	fprintf(stderr, "L: %d; maxuL: %d\n", L, maxuL);
-	fprintf(stderr, "Begin computing doubly-unique substrings by thread %d.\n", tid + 1);
+	//fprintf(stderr, "L: %d; maxuL: %d\n", L, maxuL);
+	//fprintf(stderr, "Begin computing doubly-unique substrings by thread %d.\n", tid + 1);
 
 	uint64_t i = 1, j = 0, nexti = 1, start = 0;
 	size_t nref = ref_pos.size() / num_threads;
@@ -501,17 +492,108 @@ void* FastaReader::computeIndexmin_d() {
 
 		// Index: minimum # unique substrings that cover every unique L-mer.
 		if ((i > start_ + L) && (lastl > 0)) {
-			if (HASH_LEN_ < 16) {
-				if (max_rid > 0xFFFE)
-					insert32_d(lastj - 1, lastl, refID[lastr], GSA2[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
+			if (HASH_LEN_ < 16)
+				insert32_d(lastj - 1, lastl, refID[lastr], GSA2[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
+			else
+				insert64_d(lastj - 1, lastl, refID[lastr], GSA2[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
+			start_ = lastj;
+		} 
+
+		// Aggregate unique L-mers.
+		if (i <= start + L) {
+			uLmcount[ri] += (j - start);
+			start = j;
+		} else {
+			uLmcount[ri] += (j + L - i);
+			start = j;
+		}
+		
+		i++;
+		lastr = ri;
+		lastl = length;
+		lastj = j;		
+	}
+
+	return 0;
+}
+
+void* FastaReader::computeIndexmin_d_() {
+	int tid = 0;
+	pthread_mutex_lock(&thread_lock);
+	tid = current_tid++;
+	pthread_mutex_unlock(&thread_lock);
+	//fprintf(stderr, "L: %d; maxuL: %d\n", L, maxuL);
+	//fprintf(stderr, "Begin computing doubly-unique substrings by thread %d.\n", tid + 1);
+
+	uint64_t i = 1, j = 0, nexti = 1, start = 0;
+	size_t nref = ref_pos.size() / num_threads;
+	if (tid > 0)
+		i = ref_pos[tid * nref - 1];
+	nexti = (tid == num_threads - 1) ? ref_pos[ref_pos.size() - 1] : ref_pos[(tid + 1) * nref - 1];
+	size_t ci = 0, ri = tid * nref, lastr = ri;
+	for (; i >= contig_pos[ci]; ci++);
+	uint64_t start_ = 0, lastj = 0, lastl = 0; // For computing a minimum sample of substrings.
+
+	while (i < nexti) {
+		// Index not assigned.
+		if (mu_index[i] == UINT16_MAX) {
+			i++;
+			continue;
+		}
+		j = i - mu_index[i];
+
+		// Reached a separation region between two contigs.
+		if (i >= contig_pos[ci] - 4) {
+			if ((start + L + 2 >= contig_pos[ci]) && exist_unique_[ci]) {
+				if (ri == lastr)
+					uLmcount[ri] -= (start + L + 3 - contig_pos[ci]);
 				else
-					insert32_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
-			} else {
-				if (max_rid > 0xFFFE)
-					insert64_d(lastj - 1, lastl, refID[lastr], GSA2[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
-				else
-					insert64_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
+					uLmcount[lastr] -= (start + L + 3 - contig_pos[ci]);
 			}
+			start = std::max(contig_pos[ci], i - L);
+			ci++;
+			if (ci >= contig_pos.size())
+				break;
+			if (i >= ref_pos[ri] - 4)
+				ri++;
+			if (start + L + 2 >= contig_pos[ci]) 
+				exist_unique_[ci] = false;
+		}
+
+		// Substring spans two different contigs.
+		if (ci > 0 && j - 1 < contig_pos[ci - 1]) {
+			i++;
+			continue;
+		}
+
+		// Substring have special characters "RYKMSWBDHVN-".
+		bool special_character_ = false;
+		for (uint64_t spos = j - 1; spos < i; spos++)
+			if ((seqs_[spos] - base_offset != 65) && 
+			    (seqs_[spos] - base_offset != 67) &&
+			    (seqs_[spos] - base_offset != 71) &&
+			    (seqs_[spos] - base_offset != 84)) {
+				special_character_ = true;
+				break;
+			}
+		if (special_character_) {
+			i++;
+			continue;
+		}
+
+		// Substring length exceeds maxuL, is not considered within the index.
+		uint64_t length = i - j + 1;
+		if (length > maxuL) {
+			i++;
+			continue;
+		}
+
+		// Index: minimum # unique substrings that cover every unique L-mer.
+		if ((i > start_ + L) && (lastl > 0)) {
+			if (HASH_LEN_ < 16)
+				insert32_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
+			else
+				insert64_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
 			start_ = lastj;
 		} 
 
@@ -534,7 +616,10 @@ void* FastaReader::computeIndexmin_d() {
 }
 
 void FastaReader::computeIndex(int mode) {
-	mode_ = mode;
+	if ((max_rid > 0xFFFE) || (mode == 1))
+		mode_ = mode;
+	else
+		mode_ = mode + 2;
 	switch (mode) {
 		case 1:
 		case 2:
@@ -542,21 +627,24 @@ void FastaReader::computeIndex(int mode) {
 				uLmcount.push_back(0);
 			for (uint32_t i = 0; i < C_; i++)
 				exist_unique_.push_back(true);
-			for (int i = 0; i < num_locks; i++) {
-				pthread_spinlock_t *lock_i = new pthread_spinlock_t();
-				hasht_access.push_back(lock_i);
-				pthread_spin_init(lock_i, PTHREAD_PROCESS_SHARED);
-			}
 			hasht = new Hash(HASH_LEN_);
+			hasht_access = new pthread_spinlock_t();
+			pthread_spin_init(hasht_access, PTHREAD_PROCESS_SHARED);
 
 			break;
+		case 3:
+			for (uint32_t i = 0; i < M_; i++)
+				uLmcount[i] = 0;
+			for (uint32_t i = 0; i < C_; i++)
+				exist_unique_[i] = true;
+			hasht->clear();
+			pthread_spin_unlock(hasht_access);
 		default:
 			break;
 	}
 
 	auto start = std::chrono::high_resolution_clock::now();
 	pthread_t threads[num_threads];
-	pthread_mutex_init(&thread_lock, NULL);
 	current_tid = 0;
 	for (int i = 0; i < num_threads; i++)
 		pthread_create(&threads[i], NULL, computeIndex_t, this);
@@ -572,13 +660,49 @@ void FastaReader::computeIndex(int mode) {
 			hasht->encodeIdx32(index_file, 0);
 		else
 			hasht->encodeIdx64(index_file, 0);
-		FILE *pFile = fopen("./unique_lmer_count_u.out", "w");
-		fprintf(pFile, "REFID\tCNT\n");
+		FILE *lcFile = fopen("./unique_lmer_count_u.out", "w");
+		fprintf(lcFile, "REFID\tCNT\n");
 		for (uint32_t i = 0; i < M_; i++)
-			fprintf(pFile, "%u\t%u\n", refID[i], uLmcount[i]);
-		fclose (pFile);
+			fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
+		fclose (lcFile);
+		FILE *glFile = fopen("./genome_lengths.out", "w");
+		fprintf(glFile, "REFID\tLENGTH\n");
+		uint32_t gl = 0, j = 0;
+		for (uint32_t i = 0; i < C_; i++) {
+			gl += (contig_pos[i] - ((i == 0) ? 0 : contig_pos[i - 1]) - 4);
+			if (contig_pos[i] >= ref_pos[j]) {
+				fprintf(glFile, "%u\t%u\n", refID[j], gl / 2);
+				j++;
+				gl = 0;
+			}	
+		}
+		fclose (glFile);
 	}
 	if (mode == 2) {
+		std::string index_file = "index_d.bin2";
+		if (HASH_LEN_ < 16)
+			hasht->encodeIdx32_d(index_file, 0);
+		else
+			hasht->encodeIdx64_d(index_file, 0);
+		FILE *lcFile = fopen("./unique_lmer_count_d.out", "w");
+		fprintf(lcFile, "REFID\tCNT\n");
+		for (uint32_t i = 0; i < M_; i++)
+			fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
+		fclose (lcFile);
+		FILE *glFile = fopen("./genome_lengths.out", "w");
+		fprintf(glFile, "REFID\tLENGTH\n");
+		uint32_t gl = 0, j = 0;
+		for (uint32_t i = 0; i < C_; i++) {
+			gl += (contig_pos[i] - ((i == 0) ? 0 : contig_pos[i - 1]) - 4);
+			if (contig_pos[i] >= ref_pos[j]) {
+				fprintf(glFile, "%u\t%u\n", refID[j], gl / 2);
+				j++;
+				gl = 0;
+			}
+		}
+		fclose (glFile);
+	}
+	if (mode == 3) {
 		std::string index_file = "index_d.bin2";
 		if (HASH_LEN_ < 16)
 			hasht->encodeIdx32_d(index_file, 0);
@@ -590,18 +714,6 @@ void FastaReader::computeIndex(int mode) {
 			fprintf(pFile, "%u\t%u\n", refID[i], uLmcount[i]);
 		fclose (pFile);
 	}
-}
-
-void FastaReader::setNumLocks(int nl) {
-	if (nl > 0xFFFF) {
-		num_locks = 1 << 16;
-		return;
-	}
-	if (nl <= 0xFF) {
-		num_locks = 1 << 8;
-		return;
-	}
-	num_locks = 1 << (31 - __builtin_clz(nl));
 }
 
 void FastaReader::setHashLength(uint32_t hl) {

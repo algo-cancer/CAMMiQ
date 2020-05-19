@@ -116,6 +116,21 @@ Hash::~Hash() {
 	//	smap64.clear();
 }
 
+void Hash::clear() {
+	if (!map32.empty()) {
+		for (auto it : map32)
+			delete it.second;
+		map32.clear();
+		fprintf(stderr, "HASHMAP: cleared 32-bits map.\n");
+	}
+	if (!map64.empty()) {
+		for (auto it : map64)
+			delete it.second;
+		map64.clear();
+		fprintf(stderr, "HASHMAP: cleared 64-bits map.\n");
+	}
+}
+
 trieNode* Hash::getNode() {
 	trieNode *pNode = new trieNode();
 	return pNode;

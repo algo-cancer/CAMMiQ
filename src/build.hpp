@@ -12,10 +12,6 @@ class FastaReader {
 	private:
 		/* Maximum and minimum unique substring length. */
 		uint32_t L = 100;
-
-		// Modified 10/28
-		uint32_t ext_len = 3;
-
 		uint32_t K_ = 30;
 		int minuL = 20;
 		uint32_t maxuL = 50;
@@ -56,8 +52,7 @@ class FastaReader {
 		std::unordered_map<std::string, uint32_t> filenames;
 
 		/* */
-		int num_locks = 1;
-		std::vector<pthread_spinlock_t*> hasht_access;
+		pthread_spinlock_t* hasht_access;
 		uint32_t HASH_LEN_ = 12;
 		Hash *hasht = NULL;
 
@@ -86,9 +81,8 @@ class FastaReader {
 				delete sa;
 			if (hasht != NULL)
 				delete hasht;
-			for (auto spinlock : hasht_access)
-				if (spinlock != NULL)
-					delete spinlock;
+			if (hasht_access != NULL)
+				delete hasht_access;
 		}
 
 		/* Read in fasta files. */
@@ -105,14 +99,16 @@ class FastaReader {
 		/* Compute minimum unique substrings. */
 		void* computeIndexmin();
 		void* computeIndexmin_d();
+		void* computeIndexmin_d_();
 		static void *computeIndex_t(void *obj) {
 			switch (mode_) {
 				case 1:
 					return ((FastaReader*) obj)->computeIndexmin();
 				case 2:
+				case 3:
 					return ((FastaReader*) obj)->computeIndexmin_d();
 				default:
-					return ((FastaReader*) obj)->computeIndexmin();
+					return ((FastaReader*) obj)->computeIndexmin_d_();
 			}
 		}
 
@@ -130,7 +126,6 @@ class FastaReader {
 		void insert64(uint64_t, uint32_t, uint32_t, uint8_t);
 		void insert64_d(uint64_t, uint32_t, uint32_t, uint32_t, uint8_t, uint8_t);
 
-		void setNumLocks(int);
 		void setHashLength(uint32_t);
 
 		//void try_printing_index_32(uint64_t, uint32_t);

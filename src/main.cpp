@@ -117,17 +117,12 @@ int main(int argc, char** argv) {
 			erate = std::stof(argv[++i]);
 			continue;
 		}
-
 		if (val == "-h") {
 			if (++i >= argc) {
 				fprintf(stderr, "Please specify hash length as an integer.\n"); 
 				exit(EXIT_FAILURE);
 			}
 			if (i + 1 < argc && argv[i + 1][0] != '-') {
-				if (mode == 0) {
-					fprintf(stderr, "Multiple values of h is only valid in mode QUERY.\n"); 
-					exit(EXIT_FAILURE);
-				}
 				h1 = atoi(argv[i++]); 
 				h2 = atoi(argv[i]);
 			} else
@@ -152,7 +147,7 @@ int main(int argc, char** argv) {
 				exit(EXIT_FAILURE);
 			}
 			t = atoi(argv[i]);
-			omp_set_num_threads(t); 
+			omp_set_num_threads(atoi(argv[i])); 
 			continue;
 		}
 		if (val == "-f") {
@@ -268,12 +263,18 @@ int main(int argc, char** argv) {
 				main_fr->computeIndex(2);
 			}
 			if (idx_option.compare("both") == 0) {
-				main_fr->allocSuffixArray(1);
-				main_fr->setHashLength(h1);
+				main_fr->allocSuffixArray(3);
+				if (h == -1)
+					main_fr->setHashLength(h1);
+				else
+					main_fr->setHashLength(h);
 				main_fr->computeIndex(1);
 				main_fr->allocSuffixArray(2);
-				main_fr->setHashLength(h2);
-				main_fr->computeIndex(2);
+				if (h == -1)
+					main_fr->setHashLength(h2);
+				else
+					main_fr->setHashLength(h);
+				main_fr->computeIndex(3);
 			}
 			if (main_fr)
 				delete main_fr;

@@ -190,9 +190,25 @@ void SuffixArray::computeAvgLcp(uint8_t* s, uint64_t n, bool debug) {
 	}
 }
 
+void SuffixArray::reloadLCP(uint64_t n, bool debug) {
+	auto start = std::chrono::high_resolution_clock::now();
+	std::string lcp_fn = "lcp.bin";
+	readArray16(LCP, n + 1, lcp_fn);
+	if (remove("lcp.bin") == 0)
+		fprintf(stderr, "Deleted temp file lcp.bin.\n");
+	else
+		fprintf(stderr, "Error in deleting file lcp.bin.\n");
+	if (debug) {
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+				(std::chrono::high_resolution_clock::now() - start).count();
+		fprintf(stderr, "Time for reloading LCP array: %lu ms.\n", duration);
+	}
+}
+
 void SuffixArray::prepareGnrLCP(uint64_t n, bool debug) {
 	auto start = std::chrono::high_resolution_clock::now();
 
+	lcp_prepared__ = 1;
 	std::string gsa_fn = "gsa.bin";
 	if (gsa_unit_ == 32) {
 		readArray32((uint32_t *) REV, n + 1, gsa_fn);
@@ -711,7 +727,8 @@ void SuffixArray::writeArray16(uint16_t *arr, uint64_t n, std::string &fn) {
 
 uint16_t* SuffixArray::run(uint8_t* s, std::vector<uint64_t> &spos, 
 				std::vector<uint32_t> &sid, uint64_t n, int mode, 
-				uint16_t ulmax, uint16_t el, bool debug, bool debug_sa) {
+				uint16_t ulmax, uint16_t el, bool debug, 
+				bool debug_sa, bool write_lcp) {
 	switch (mode) {
 		case 0:
 			computeSuffixArray(s, n, debug, debug_sa);
@@ -732,10 +749,17 @@ uint16_t* SuffixArray::run(uint8_t* s, std::vector<uint64_t> &spos,
 				computeGnrLcpArray16(n, el, debug);
 				computeOCC16(n, debug);
 			}
+			if (write_lcp) {
+				std::string lcp_fn = "lcp.bin";
+				writeArray16(LCP, n + 1, lcp_fn);
+			}
 			computeMinUnique(n, debug);
 			break;
 		case 2:
-			prepareGnrLCP(n, debug);
+			if (lcp_prepared__ == 0)
+				prepareGnrLCP(n, debug);
+			else
+				reloadLCP(n, debug);
 			if (gsa_unit_ == 32) {
 				computeGnrLcpArray32_d(n, el, ulmax, debug);
 				computeOCC32_d(n, ulmax, debug);

@@ -87,6 +87,7 @@ class Hash {
 		//Hash(uint32_t, uint8_t);
 		Hash(uint32_t);
 		~Hash();
+		void clear();
 
 		/* Insert a unique substring to hash table. */
 		trieNode* getNode();
