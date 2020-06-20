@@ -1,0 +1,148 @@
+"""
+	Download complete genomes from NCBI RefSeq
+	System requirements:
+		python, wget, gzip (all added to $PATH)
+	Usage:
+		python CAMMiQ-download <OPTIONS>
+	Options:
+		--dir <DATABASE_PATH> 
+			The directory to maintain the genomes
+		--taxa bacteria|viral|archaea|all
+			Download all complete bacterial, viral, archaeal genomes
+		--sample none|taxid|species
+			Keep one representative genome per taxid/species
+		--unzip
+			Unzip *.gz files
+		--quiet
+			Disable wget outputs 
+	Output: 
+		A list of *.fna(.gz) files and a single file "genome_map.out" in directory DATABASE_PATH
+"""
+import sys
+import os
+
+db_dir = "./"
+sample_genomes = "none"
+unzip_genomes = 0
+div = "bacteria"
+quiet = 0
+fn_map = dict()
+download_list = []
+taxids = []
+
+def parse_arguments():
+	global db_dir, sample_genomes, unzip_genomes, div, quiet
+	i = 1
+	while i < len(sys.argv):
+		if sys.argv[i] == "--dir":
+			i += 1
+			db_dir = sys.argv[i]
+		elif sys.argv[i] == "--taxa":
+			i += 1
+			div = sys.argv[i]
+		elif sys.argv[i] == "--sample":
+			i += 1
+			sample_genomes = sys.argv[i]
+		elif sys.argv[i] == "--unzip":
+			unzip_genomes = 1
+		elif sys.argv[i] == "--quiet":
+			quiet = 1
+		else:
+			sys.exit("Invalid argument.")
+		i += 1	
+
+def download_assembly_summary(division, q = 0):
+	assembly_summary_dir = "ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq/" + division + "/assembly_summary.txt"
+	if q == 1:
+		os.popen("wget -q " + assembly_summary_dir)
+	else:
+		os.popen("wget " + assembly_summary_dir)
+	os.popen("mv assembly_summary.txt " + db_dir + "assembly_summary_" + division + ".txt")
+
+def parse_assembly_summary(assembly_summary_fn = "assembly_summary_bacteria.txt"):
+	fp = open(db_dir + assembly_summary_fn, 'r')
+	cate = dict()
+	for line in fp:
+		if line[0] == "#":
+			continue
+		line = line.strip()
+		tokens = line.split('\t')
+		if tokens[11] == "Complete Genome":
+			fn = tokens[19].split('/')
+			fn = fn[-1] + "_genomic.fna"
+			fn_map[fn] = [tokens[5], tokens[7]]
+			download_list.append(tokens[19] + "/" + fn + ".gz")
+	fp.close()
+
+def parse_assembly_summary_taxid(assembly_summary_fn = "assembly_summary_bacteria.txt"):
+	fp = open(db_dir + assembly_summary_fn, 'r')
+	cate = dict()
+	for line in fp:
+		if line[0] == "#":
+			continue
+		line = line.strip()
+		tokens = line.split('\t')
+		if tokens[11] == "Complete Genome" and tokens[5] not in taxids:
+			fn = tokens[19].split('/')
+			fn = fn[-1] + "_genomic.fna"
+			fn_map[fn] = [tokens[5], tokens[7]]
+			download_list.append(tokens[19] + "/" + fn + ".gz")
+			taxids.append(tokens[5])
+	fp.close()
+
+def parse_assembly_summary_species(assembly_summary_fn = "assembly_summary_bacteria.txt"):
+	fp = open(db_dir + assembly_summary_fn, 'r')
+	cate = dict()
+	for line in fp:
+		if line[0] == "#":
+			continue
+		line = line.strip()
+		tokens = line.split('\t')
+		if tokens[11] == "Complete Genome" and tokens[6] not in taxids:
+			fn = tokens[19].split('/')
+			fn = fn[-1] + "_genomic.fna"
+			fn_map[fn] = [tokens[6], tokens[7]]
+			download_list.append(tokens[19] + "/" + fn + ".gz")
+			taxids.append(tokens[6])
+	fp.close()
+
+def prepare_assembly_summary(division, q = 0):
+	download_assembly_summary(division, q)
+	if sample_genomes == "none":
+		parse_assembly_summary("assembly_summary_" + division + ".txt")
+	elif sample_genomes == "taxid":
+		parse_assembly_summary_taxid("assembly_summary_" + division + ".txt")
+	else:
+		parse_assembly_summary_species("assembly_summary_" + division + ".txt")
+
+def download_files(q = 0):
+	if q == 1:
+		for file in download_list:
+			os.popen("wget -q " + file + " -P " + db_dir)
+	else:
+		for file in download_list:
+			os.popen("wget " + file + " -P " + db_dir)
+
+def unzip_files():
+	os.popen("gunzip " + db_dir + "*.gz")
+
+def output_map():
+	map_fp = open(db_dir + "genome_map.out", 'w')
+	i = 1
+	for fn in fn_map.keys():
+		map_fp.write("%s\t%d\t%s\t%s\n" %(fn, i, fn_map[fn][0], fn_map[fn][1]))
+		i += 1
+	map_fp.close()
+
+if __name__ == '__main__':
+	parse_arguments()
+	if div == "all":
+		for division in ["bacteria", "viral", "archaea"]:
+			prepare_assembly_summary(division, quiet)
+	else:
+		prepare_assembly_summary(div, quiet)
+	download_files(quiet)
+	if unzip_genomes:
+		unzip_files()
+	output_map()
+
