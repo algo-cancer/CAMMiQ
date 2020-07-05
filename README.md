@@ -18,4 +18,23 @@ git clone https://github.com/algo-cancer/CAMMiQ
 where ```<CPLEX_DIR>``` should be replaced with the directory of your CPLEX_Studio.
 
 ### How do I use CAMMiQ?
-To begin using CAMMiQ, you will first need to install it, and then either download or create a database.
+To begin using CAMMiQ, you will first need to index the input genomes. 
+
+#### What is CAMMiQ index composed of?
+CAMMiQ index is composed of three parts - all of them are necessary to query the input reads: 
+* (i) A set of representative (i.e., maximally sparsified) *shortest unique substrings* on each input genome, organized as a prefix tree (trie) and hashed based on their common prefixes, encoded in binary file ```index_u.bin1```.
+* (ii) A set of representative (i.e., maximally sparsified) *shortest doubly unique substrings* on each input genome, organized as a prefix tree (trie) and hashed based on their common prefixes, encoded in binary file ```index_d.bin2```.
+* (iii) Other meta-information of the input genomes, including ```genome_lengths.out```, a text file containing the genome lengths; ```unique_lmer_count_u.out```, a text file containing the number of unique *L*-mers on each genome; and ```unique_lmer_count_d.out```, a text file containing the number of doubly unique *L*-mers on each genome.
+
+#### How do I construct the index?
+You'll need to run ```./cammiq --build [options]``` from command line, where ```[options]``` specifies the following list of (possibly mandatory) parameters.
+* ```-f <MAP_FILE>``` 
+* ```-d <FASTA_DIR>```
+* ```-k <int>```
+* ```-L <int>```
+* ```-Lmax <int>```
+* ```-h <int>|<int1 int2>```
+* ```-i unique|doubly_unique|both```
+* ```-t <int>```
+
+#### How do I query the collection of (metagenomic) reads?
