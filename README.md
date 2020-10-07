@@ -5,7 +5,7 @@ CAMMiQ is a software tool for microbial identification and quantification. Speci
 **_To cite CAMMiQ, please mention_ https://www.biorxiv.org/content/10.1101/2020.06.12.149245v2** 
 
 ### How to install CAMMiQ?
-Dependencies: Though several scripts (to compile the code and download the database) are written using the Bash shell and python, our core programs to build the index and query the set of reads are written in C++11, and need to be compiled using a relatively recent version (The current build of CAMMiQ was tested with version 5.2.0) of gcc that will support C++11. Multithreading is handled using pthread and [OpenMP](https://en.wikipedia.org/wiki/OpenMP).
+**Dependencies**: Though several scripts (to compile the code and download the database) are written using the Bash shell and python, our core programs to build the index and query the set of reads are written in C++11, and need to be compiled using a relatively recent version (The current build of CAMMiQ was tested with version 5.2.0) of gcc that will support C++11. Multithreading is handled using pthread and [OpenMP](https://en.wikipedia.org/wiki/OpenMP).
 
 In addition, you'll need the following components to compile the sources:
 * https://github.com/jlabeit/parallel-divsufsort which constructs suffix arrays in a parallelized and lightweight fashion.
@@ -36,26 +36,32 @@ You'll need to run ```./cammiq --build [options]``` from command line, where ```
   * NCBI taxonomic IDs
   * Organism names
   
-  Here is an example format:
-``` GCF_000010525.1_ASM1052v1_genomic.fna	1	7	Azorhizobium caulinodans ORS 571
-GCF_000007365.1_ASM736v1_genomic.fna	2	9	Buchnera aphidicola str. Sg (Schizaphis graminum)
-GCF_000218545.1_ASM21854v1_genomic.fna	3	11	Cellulomonas gilvus ATCC 13127
-GCF_000020965.1_ASM2096v1_genomic.fna	4	14	Dictyoglomus thermophilum H-6-12
-GCF_000012885.1_ASM1288v1_genomic.fna	5	19	Pelobacter carbinolicus DSM 2380
-......
-```
-
-* ```-d <FASTA_DIR>```
-* ```-k <int>```
-* ```-L <int>```
-* ```-Lmax <int>```
-* ```-h <int>|<int1 int2>```
-* ```-i unique|doubly_unique|both```
-* ```-t <int>```
+  Here is an example format of ```<MAP_FILE>```:
+  ``` 
+  GCF_000010525.1_ASM1052v1_genomic.fna	1	7	Azorhizobium caulinodans ORS 571
+  GCF_000007365.1_ASM736v1_genomic.fna	2	9	Buchnera aphidicola str. Sg (Schizaphis graminum)
+  GCF_000218545.1_ASM21854v1_genomic.fna	3	11	Cellulomonas gilvus ATCC 13127
+  GCF_000020965.1_ASM2096v1_genomic.fna	4	14	Dictyoglomus thermophilum H-6-12
+  GCF_000012885.1_ASM1288v1_genomic.fna	5	19	Pelobacter carbinolicus DSM 2380
+  ......
+  ```
+* ```-d <FASTA_DIR>``` **Mandatory**. ```<FASTA_DIR>``` should contain the list of (fasta) file names given in ```<MAP_FILE>```.
+* ```-k <int>``` **Optional**. The minimum length of a unique or doubly-unique substring to be considered in CAMMiQ index. Default value is ```k = 26```.
+* ```-L <int>``` **Optional (but strongly recommended)**. Potential read length in a query supported by CAMMiQ index. Default value is ```L = 100```, which fits best for reads with length ```100```; if, for instance, the reads in your query have length ```75```, then you are expected to build an index by specifying ```L = 75```. 
+* ```-Lmax <int>``` **Optional (but recommended)**. The maximum length of a unique or doubly-unique substring to be considered in CAMMiQ index. Default value is ```Lmax = 50``` or ```Lmax = 0.5 * L```.
+* ```-h <int>|<int1 int2>``` **Optional**. Length of the common prefixes of the unique or doubly-unique substrings to be hashed. Default value is ```h = 26```.
+  * Note a: The value of ```h``` is required to be *less than or equal to* ```k```. 
+  * Note b: ```-h``` option can take in one or two integer values. With one input value ```h0```, CAMMiQ will set both hash lengths (for the collection of unique substrings and for the collection of doubly-unique substrings) ```h0```; with two input values ```h1``` and ```h2```, CAMMiQ will set the hash length for unique substrings ```h1``` and the hash length for doubly-unique substrings ```h2```.
+* ```-i unique|doubly_unique|both``` **Mandatory**. Indexing options.
+  * ```unique``` CAMMiQ will build the set of *unique substrings* from each input genome, consisting of ```index_u.bin1```, ```genome_lengths.out``` and ```unique_lmer_count_u.out```.
+  * ```doubly_unique``` CAMMiQ will build the set of *doubly unique substrings* from each input genome, consisting of ```index_d.bin2```, ```genome_lengths.out``` and ```unique_lmer_count_d.out```.
+  * ```both``` CAMMiQ will build its complete indices consisting of all above files.
+* ```-t <int>``` **Optional**. Number of threads used during CAMMiQ's index construction. Note that CAMMiQ uses OpenMP during its index construction, which, by default, is 'auto-threaded' (i.e. attempts to use all available CPUs on a computer).
 
 #### How do I query the collection of (metagenomic) reads?
 You'll need to run ```./cammiq --query [options]``` from command line, where ```[options]``` specifies the following list of (possibly mandatory) parameters.
-* ```-f <INDEX_FILES>```
+* ```-f <INPUT_FILES>```
+* ```-d <FASTA_DIR>```
 * ```-o <OUTPUT_FILE>```
 * ```-e <int>```
 * ```-h <int>|<int1 int2>```
