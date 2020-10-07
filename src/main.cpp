@@ -280,7 +280,6 @@ int main(int argc, char** argv) {
 				delete main_fr;
 			break;
 		case 1:
-			//fprintf(stderr, "fm name: %s.\n", fm_name.c_str());
 			if (fi_name != "") {
 				u = (idx_option.compare("doubly_unique") == 0) ? 1 : 0;
 				if (h == -1) {
@@ -295,21 +294,17 @@ int main(int argc, char** argv) {
 					exit(EXIT_FAILURE);
 				}
 				main_fqr = new FqReader(32, h1, i1fn, h2, i2fn, fm_name, output, erate);
-				//assert(h1 == h2);
-				//main_fqr = new FqReader(32, h1, i1fn, i2fn, fm_name, output, erate);
 			}
-			//main_fqr->loadIdx();
 			main_fqr->loadIdx_p();
 			main_fqr->loadSmap();
 			if (!fq_names.empty())
 				main_fqr->queryFastq_p(fq_names);
-				//main_fqr->queryFastq(fq_names);
-			else {
-				main_fqr->getFqList(fq_dir);
-				main_fqr->queryAllFastq();
-			}
+			//else {
+				//main_fqr->getFqList(fq_dir);
+				//main_fqr->queryAllFastq();
+			//}
 			break;
-		case 2:
+		default:
 			break;
 	}
 

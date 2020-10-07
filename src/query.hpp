@@ -7,15 +7,28 @@
 
 #include "hashtrie.hpp"
 
+struct Genome {
+	public:
+		uint64_t read_cnts_u;
+		uint64_t read_cnts_d;
+		uint32_t glength;
+		uint32_t nus;
+		uint32_t nds;
+		uint32_t taxID;
+		std::string name;
+
+		Genome(uint32_t, std::string&);
+		~Genome() {};
+};
+
 class FqReader {
 	private:
 		/* Fastq file names. */
 		std::vector<std::string> qfilenames;
 
 		/* Reads. */
-		size_t max_rl = 0;
+		size_t max_rl = 256;
 		std::vector<uint8_t*> reads;
-		//std::vector<uint32_t> true_labels;
 		
 		/* Number of "conflict" (having more than one refID) reads. */
 		size_t nconf = 0;
@@ -25,14 +38,7 @@ class FqReader {
 		
 		/* Number of reads */
 		std::string MAPFILE;
-		std::unordered_map<uint32_t, size_t> species_order;
-		std::unordered_map<uint32_t, uint64_t> read_cnts_u;
-		std::unordered_map<uint32_t, uint64_t> read_cnts_d;
-		std::unordered_map<uint32_t, uint32_t> genome_lengths;
-		std::unordered_map<uint32_t, uint32_t> species_nus;
-		std::unordered_map<uint32_t, uint32_t> species_nds;
-		//std::unordered_map<uint32_t, uint32_t> species_tus;
-		//std::unordered_map<uint32_t, uint32_t> species_tds;
+		std::vector<Genome*> genomes;
 		int *exist = NULL;
 
 		/* Hash parameters. */
@@ -58,7 +64,6 @@ class FqReader {
 
 		void loadIdx();
 		void loadIdx_p();
-		//void loadIdx_g();
 
 		void loadSmap();
 		void loadGenomeLength();
@@ -67,30 +72,18 @@ class FqReader {
 
 		void readFastq(std::string&);
 
-		void query32();
-		void query64();
-		//void quickQuery()
+		//void query32_s(size_t);
+		//void query64_s(size_t);
+		// void query32_p(size_t);
+		void query64_p(size_t);
 
-		void query32_d();
-		void query64_d();
-
-		//void query32_m();
-		//void query64_m();
-
-		//std::unordered_set<pleafNode*>& query32_p();
-		void query32_p();
-		void query64_p();
-		//void query32_a();
-		//void reformatIdx32_p();
-
-		void queryFastq(std::vector<std::string>&);
+		//void queryFastq(std::vector<std::string>&);
 		void queryFastq_p(std::vector<std::string>&);
 
-		void queryAllFastq();
+		//void queryAllFastq();
 
 		void getRC(uint8_t*, uint8_t*, size_t);
 
-		//void runILP_a(int, int, uint32_t, double);
 		void runILP_p(int, int, uint32_t, double, double, double, double);
 		
 		static int symbolIdx[256];
