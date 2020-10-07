@@ -31,11 +31,10 @@ CAMMiQ index is composed of three parts - all of them are necessary to query the
 #### How do I construct the index?
 You'll need to run ```./cammiq --build [options]``` from command line, where ```[options]``` specifies the following list of (possibly mandatory) parameters.
 * ```-f <MAP_FILE>``` **Mandatory**. ```<MAP_FILE>``` gives a list of reference genomes, e.g., all/selected complete genomes in RefSeq for the bacterial, archaeal, and viral domains (downloaded with ```CAMMiQ-download```), which constitute CAMMiQ's database, possibly alongwith NCBI's taxonomic information. The input lines in ```<MAP_FILE>``` should contain at least 4 tab-delimited fields; from left to right, they are: 
-
-  ** File names
-  ** Genome IDs (encoded in the index files)
-  ** NCBI taxonomic IDs
-  ** Organism names
+  * File names
+  * Genome IDs (encoded in the index files)
+  * NCBI taxonomic IDs
+  * Organism names
   
   Here is an example format:
 ``` GCF_000010525.1_ASM1052v1_genomic.fna	1	7	Azorhizobium caulinodans ORS 571
