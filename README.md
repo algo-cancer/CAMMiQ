@@ -2,6 +2,8 @@
 
 CAMMiQ is a software tool for microbial identification and quantification. Specifically, it builds a compact index to manage a database of microbial genomes (in particular, bacterial/viral genomes in NCBI [RefSeq](https://www.ncbi.nlm.nih.gov/refseq/) database) and answers queries of the following form: given a set of high throughput sequencing (HTS) reads obtained from a mixture of genomes in the database, identify the corresponding genomes (in the database) and compute their relative abundance.
 
+**_To cite CAMMiQ, please mention_ https://www.biorxiv.org/content/10.1101/2020.06.12.149245v2** 
+
 ### How to install CAMMiQ?
 Dependencies: Though several scripts (to compile the code and download the database) are written using the Bash shell and python, our core programs to build the index and query the set of reads are written in C++11, and need to be compiled using a relatively recent version (The current build of CAMMiQ was tested with version 5.2.0) of gcc that will support C++11. Multithreading is handled using pthread and [OpenMP](https://en.wikipedia.org/wiki/OpenMP).
 
@@ -38,3 +40,9 @@ You'll need to run ```./cammiq --build [options]``` from command line, where ```
 * ```-t <int>```
 
 #### How do I query the collection of (metagenomic) reads?
+You'll need to run ```./cammiq --query [options]``` from command line, where ```[options]``` specifies the following list of (possibly mandatory) parameters.
+* ```-f <INDEX_FILES>```
+* ```-o <OUTPUT_FILE>```
+* ```-e <int>```
+* ```-h <int>|<int1 int2>```
+* ```-t <int>```
