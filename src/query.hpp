@@ -55,8 +55,8 @@ class FqReader {
 		std::string OUTPUTFILE;
 
 	public:
-		int tid_ = 0;
-		pthread_mutex_t thread_lock;
+		//int tid_ = 0;
+		//pthread_mutex_t thread_lock;
 		
 		FqReader(int, int, uint32_t, std::string&, std::string&);
 		FqReader(int, uint32_t, std::string&, uint32_t, std::string&, std::string&);
@@ -68,9 +68,19 @@ class FqReader {
 
 		void loadIdx();
 		void loadIdx_p();
-		void* loadIdx_p__();
-		static void *loadIdx_p_(void *obj) {
-			return ((FqReader*) obj)->loadIdx_p__();
+		void* loadIdx_u_() {
+			ht_u->loadIdx64_p(IDXFILEU);
+			return 0;
+		}
+		void* loadIdx_d_() {
+			ht_d->loadIdx64_p(IDXFILED);
+			return 0;
+		}
+		static void *loadIdx_u(void *obj) {
+			return ((FqReader*) obj)->loadIdx_u_();
+		}
+		static void *loadIdx_d(void *obj) {
+			return ((FqReader*) obj)->loadIdx_d_();
 		}
 
 		void loadSmap();

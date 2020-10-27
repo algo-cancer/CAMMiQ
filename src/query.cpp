@@ -100,28 +100,12 @@ FqReader::~FqReader() {
 		delete ht_d;
 }
 
-void* FqReader::loadIdx_p__() {
-	int tid = 0;
-	pthread_mutex_lock(&thread_lock);
-	tid = tid_++;
-	pthread_mutex_unlock(&thread_lock);
-
-	if (tid == 0)
-		ht_u->loadIdx64_p(IDXFILEU);
-	else
-		ht_d->loadIdx64_p(IDXFILED);
-
-	return 0;
-}
-
 void FqReader::loadIdx_p() {
 	auto start = std::chrono::high_resolution_clock::now();
 
-	//fprintf(stderr, "%s\n", IDXFILEU.c_str());
 	pthread_t threads[2];
-	tid_ = 0;
-	for (int i = 0; i < 2; i++)
-		pthread_create(&threads[i], NULL, loadIdx_p_, this);
+	pthread_create(&threads[0], NULL, loadIdx_u, this);
+	pthread_create(&threads[1], NULL, loadIdx_d, this);
 	for (int i = 0; i < 2; i++)
 		pthread_join(threads[i], NULL);
 		
@@ -139,8 +123,7 @@ void FqReader::loadSmap() {
 
 	/* Read in fasta file. */ 
 	inputFile.open(MAPFILE);
-	//fprintf(stderr, "%s\n", MAPFILE.c_str());
-
+	
 	while (std::getline(inputFile, line)) {
 		std::istringstream lines(line);
 		lines >> gname;
@@ -151,8 +134,6 @@ void FqReader::loadSmap() {
 		genomes.push_back(new_genome);
 	}
 	inputFile.close();
-	//for (size_t i = 0; i < 4122; i++)
-	//	fprintf(stderr, "%lu, %u\t%lu\t%lu\n", i, genomes[i + 1]->taxID, genomes[i + 1]->read_cnts_u, genomes[i + 1]->read_cnts_d);
 	fprintf(stderr, "Loaded genome map file.\n");
 }
 
@@ -165,7 +146,6 @@ void FqReader::loadGenomeLength() {
 		std::istringstream lines(line);
 		lines >> id;
 		lines >> gl;
-		//genomes[(uint32_t) stoi(id)]->glength = ((uint32_t) stoi(gl));
 		genomes[stoi(id)]->glength = ((uint32_t) stoi(gl));
 	}
 	inputGLFile.close();
@@ -175,7 +155,6 @@ void FqReader::loadGenomeLength() {
 		std::istringstream lines(line);
 		lines >> id;
 		lines >> nu;
-		//genomes[(uint32_t) stoi(id)]->nus = ((uint32_t) stoi(nu));
 		genomes[stoi(id)]->nus = ((uint32_t) stoi(nu));
 	}
 	inputULFile.close();
@@ -185,7 +164,6 @@ void FqReader::loadGenomeLength() {
 		std::istringstream lines(line);
 		lines >> id;
 		lines >> nu;
-		//genomes[(uint32_t) stoi(id)]->nds = ((uint32_t) stoi(nu));
 		genomes[stoi(id)]->nds = ((uint32_t) stoi(nu));
 	}
 	inputDLFile.close();
@@ -220,8 +198,6 @@ void FqReader::getFqList(std::string &INDIR) {
 void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_) {		
 	for (auto fq_file : qfilenames_) {
 		readFastq(fq_file);
-		//for (size_t i = 0; i < 4122; i++)
-		//	fprintf(stderr, "%lu, %u\t%lu\t%lu\n", i, genomes[i + 1]->taxID, genomes[i + 1]->read_cnts_u, genomes[i + 1]->read_cnts_d);
 		query64_p(100);
 		loadGenomeLength();
 		runILP_p(100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
@@ -250,19 +226,8 @@ void FqReader::readFastq(std::string &INFILE) {
 }
 
 void FqReader::getRC(uint8_t *dest, uint8_t *srcs, size_t length) {
-	//fprintf(stderr, "LENGTH: %lu\n", length);
-	for(size_t i = 0; i < length; i++) {
-		//fprintf(stderr, "%lu, %d, %u\n", i, rcIdx[srcs[length - i - 1]], srcs[length - i - 1]); 
+	for(size_t i = 0; i < length; i++)
 		dest[i] = rcIdx[srcs[length - i - 1]];
-		/*if (genomes[3]->read_cnts_u > 0) {
-			fprintf(stderr, "Begin with error 3.\n");
-			abort();
-		}*/
-	}
-	/*if (genomes[3]->read_cnts_u > 0) {
-		fprintf(stderr, "Begin with error 3.\n");
-		abort();
-	}*/
 }
 
 void FqReader::query64_p(size_t rl) {
@@ -277,19 +242,11 @@ void FqReader::query64_p(size_t rl) {
 	uint8_t *rc_read = new uint8_t[max_rl];
 	size_t nrd = 0;
 
-	//if (genomes[3]->read_cnts_u > 0)
-	//	fprintf(stderr, "Begin with error.\n"); 
-
 	for (auto read : reads) {
 		rids.clear();
 		rid_pairs.clear();
 		pnodes.clear();
 		intersection.clear();
-
-		/*if (genomes[3]->read_cnts_u > 0) {
-			fprintf(stderr, "Begin with error 1.\n");
-			abort();
-		}*/
 
 		/* Forward strand. */
 		/* Query unique and doubly-unique substrings. */
@@ -314,18 +271,8 @@ void FqReader::query64_p(size_t rl) {
 		if (pln != NULL)
 			pnodes.insert(pln);
 
-		/*if (genomes[3]->read_cnts_u > 0) {
-			fprintf(stderr, "Begin with error 2.\n");
-			abort();
-		}*/
-
 		/* Reverse complement. */
 		getRC(rc_read, read, rl);
-
-		/*if (genomes[3]->read_cnts_u > 0) {
-			fprintf(stderr, "Begin with error 3.\n");
-			abort();
-		}*/
 
 		/* Query unique and doubly-unique substrings. */
 		hs = 2 * hash_len_u - 2;
@@ -350,11 +297,6 @@ void FqReader::query64_p(size_t rl) {
 		if (pln != NULL)
 			pnodes.insert(pln);
 
-		/*if (genomes[3]->read_cnts_u > 0) {
-			fprintf(stderr, "Begin with error 4.\n");
-			abort();
-		}*/
-
 		/* Record results. */
 		int i = 0;
 		for (auto pn : pnodes) {
@@ -367,11 +309,6 @@ void FqReader::query64_p(size_t rl) {
 					rid_pairs.insert(std::make_pair(pn->refID2, pn->refID1));
 			}
 		}
-		
-		/*if (genomes[3]->read_cnts_u > 0) {
-			fprintf(stderr, "Mid with error.\n");
-			abort();
-		}*/
 
 		//fprintf(stderr, "Read %lu; %lu\n", nrd, genomes.size());
 		switch (rid_pairs.size()) {
@@ -483,8 +420,6 @@ void FqReader::query64_p(size_t rl) {
 				}
 				break;
 		}
-		//if (genomes[3]->read_cnts_u > 0 && nrd < 1000)
-		//	fprintf(stderr, "%lu\n", nrd);
 		if (nrd++ % 100000 == 0) {
 			//fprintf(stderr, "%u\t%lu\t%lu\n", genomes[3]->taxID, genomes[3]->read_cnts_u, genomes[3]->read_cnts_d);
 			fprintf(stderr, "\rProcessed %lu reads.\n", nrd);
