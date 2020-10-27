@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <pthread.h>
 #include <math.h>
 #include <string>
 #include <fstream>
@@ -99,13 +100,36 @@ FqReader::~FqReader() {
 		delete ht_d;
 }
 
+void* FqReader::loadIdx_p__() {
+	int tid = 0;
+	pthread_mutex_lock(&thread_lock);
+	tid = tid_++;
+	pthread_mutex_unlock(&thread_lock);
+
+	if (tid == 0)
+		ht_u->loadIdx64_p(IDXFILEU);
+	else
+		ht_d->loadIdx64_p(IDXFILED);
+
+	return 0;
+}
+
 void FqReader::loadIdx_p() {
-	fprintf(stderr, "%s\n", IDXFILEU.c_str());
-	
-	ht_u->loadIdx64_p(IDXFILEU);
-	ht_d->loadIdx64_p(IDXFILED);
+	auto start = std::chrono::high_resolution_clock::now();
+
+	//fprintf(stderr, "%s\n", IDXFILEU.c_str());
+	pthread_t threads[2];
+	tid_ = 0;
+	for (int i = 0; i < 2; i++)
+		pthread_create(&threads[i], NULL, loadIdx_p_, this);
+	for (int i = 0; i < 2; i++)
+		pthread_join(threads[i], NULL);
 		
 	fprintf(stderr, "Loaded index file.\n");
+
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+					(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for loading index: %lu ms.\n", duration);
 }
 
 void FqReader::loadSmap() {

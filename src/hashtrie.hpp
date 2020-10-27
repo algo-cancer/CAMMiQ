@@ -4,6 +4,7 @@
 #include <vector>
 //#include <unordered_map>
 #include <robin_hood.h>
+//#include "binaryio_temp.hpp"
 #include "binaryio.hpp"
 
 /*struct trieNode {
@@ -157,6 +158,8 @@ class Hash {
 		trieNode* decodeTrie();
 		trieNode* decodeTrie_d();
 		trieNode* decodeTrie_p(int, uint8_t);
+		//trieNode* decodeTrie_pu(uint8_t);
+		//trieNode* decodeTrie_pd(uint8_t);
 		void loadIdx64_p(std::string &fn);
 		void loadIdx64_test(std::string &fn);
 		//void loadIdx64_b(std::string&, std::string&);

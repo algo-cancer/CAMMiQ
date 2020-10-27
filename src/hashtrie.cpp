@@ -1,7 +1,9 @@
 #include <assert.h>
+#include <chrono>
 
 #include "hashtrie.hpp"
 #include "util.hpp"
+//#include "binaryio_temp.hpp"
 #include "binaryio.hpp"
 
 trieNode::trieNode() {
@@ -804,7 +806,7 @@ uint32_t Hash::find64(uint64_t bucket_, const char* cand, size_t len_) {
 	Load encoded index file (*.IDX)
  */
 trieNode* Hash::decodeTrie() {
-	int b = idx_reader->readBits32(1);
+	int b = idx_reader->readBit();
 	if (b == 0)
 		return NULL;
 	else {
@@ -818,8 +820,8 @@ trieNode* Hash::decodeTrie() {
 		}
 		if (isleaf) {
 			leafNode *leaf = getLeaf();
-			leaf->refID = idx_reader->readBits32(32);
-			leaf->ucount = idx_reader->readBits32(16);
+			leaf->refID = idx_reader->readBits32();
+			leaf->ucount = idx_reader->readBits16();
 			delete root;
 			return leaf;
 		}
@@ -828,7 +830,7 @@ trieNode* Hash::decodeTrie() {
 }
 
 trieNode* Hash::decodeTrie_d() {
-	int b = idx_reader->readBits32(1);
+	int b = idx_reader->readBit();
 	if (b == 0)
 		return NULL;
 	else {
@@ -842,10 +844,10 @@ trieNode* Hash::decodeTrie_d() {
 		}
 		if (isdleaf) {
 			dleafNode *dleaf = getLeaf_d();
-			dleaf->refID.first = idx_reader->readBits32(32);
-			dleaf->refID.second = idx_reader->readBits32(32);
-			dleaf->ucount.first = idx_reader->readBits32(16);
-			dleaf->ucount.first = idx_reader->readBits32(16);
+			dleaf->refID.first = idx_reader->readBits32();
+			dleaf->refID.second = idx_reader->readBits32();
+			dleaf->ucount.first = idx_reader->readBits16();
+			dleaf->ucount.first = idx_reader->readBits16();
 			delete root;
 			return dleaf;
 		}
@@ -892,7 +894,7 @@ trieNode* Hash::decodeTrie_d() {
 
 trieNode* Hash::decodeTrie_p(int d_flag, uint8_t depth) {
 	//fprintf(stderr, "AAAA.\n");
-	int b = idx_reader->readBits32(1);
+	int b = idx_reader->readBit();
 	if (b == 0)
 		return NULL;
 	else {
@@ -909,17 +911,17 @@ trieNode* Hash::decodeTrie_p(int d_flag, uint8_t depth) {
 				leaf_cnt++;
 				pleafNode *pleaf = getLeaf_p();
 				pleaf->depth = depth + hash_len_;
-				uint32_t rid1 = idx_reader->readBits32(32);
-				uint32_t rid2 = idx_reader->readBits32(32);
+				uint32_t rid1 = idx_reader->readBits32();
+				uint32_t rid2 = idx_reader->readBits32();
 				/* */
 				assert(rid1 != 0 && rid2 != 0);
 				pleaf->refID1 = rid1;
 				pleaf->refID2 = rid2;
-				pleaf->ucount1 = idx_reader->readBits32(16);
-				pleaf->ucount2 = idx_reader->readBits32(16);
+				pleaf->ucount1 = idx_reader->readBits16();
+				pleaf->ucount2 = idx_reader->readBits16();
 				pleaf->rcount = 0;
-				//uint32_t pos1 = idx_reader->readBits32(32);
-				//uint32_t pos2 = idx_reader->readBits32(32);
+				//uint32_t pos1 = idx_reader->readBits32();
+				//uint32_t pos2 = idx_reader->readBits32();
 				//if (pos1 == 0)
 					map_sp[rid1].push_back(pleaf);
 				//else
@@ -946,12 +948,12 @@ trieNode* Hash::decodeTrie_p(int d_flag, uint8_t depth) {
 				leaf_cnt++;
 				pleafNode *pleaf = getLeaf_p();
 				pleaf->depth = depth + hash_len_;
-				uint32_t rid = idx_reader->readBits32(32);
+				uint32_t rid = idx_reader->readBits32();
 				pleaf->refID1 = rid;
 				pleaf->refID2 = 0;
-				pleaf->ucount1 = idx_reader->readBits32(16);
+				pleaf->ucount1 = idx_reader->readBits16();
 				pleaf->rcount = 0;
-				//uint32_t pos = idx_reader->readBits32(32);
+				//uint32_t pos = idx_reader->readBits32();
 				//if (pos == 0)
 					map_sp[rid].push_back(pleaf);
 				//else
@@ -978,16 +980,16 @@ trieNode* Hash::decodeTrie_p(int d_flag, uint8_t depth) {
 void Hash::loadIdx32(std::string &fn) {
 	idx_reader = new BitReader();
 	idx_reader->openFile(fn);
-	int doubly_unique = idx_reader->readBits32(1);
+	int doubly_unique = idx_reader->readBit();
 	assert(doubly_unique == 0);
-	int option = idx_reader->readBits32(7);
+	int option = idx_reader->readBits(7);
 	assert(option == 32);
-	hash_len_ = idx_reader->readBits32(8);
-	uint32_t bucket = idx_reader->readBits32(32);
+	hash_len_ = idx_reader->readBits(8);
+	uint32_t bucket = idx_reader->readBits32();
 	while (bucket != END32) {
 		trieNode *root = decodeTrie();
 		map32[bucket] = root;
-		bucket = idx_reader->readBits32(32);
+		bucket = idx_reader->readBits32();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded index from file.\n");
@@ -997,16 +999,16 @@ void Hash::loadIdx32(std::string &fn) {
 void Hash::loadIdx32_d(std::string &fn) {
 	idx_reader = new BitReader();
 	idx_reader->openFile(fn);
-	int doubly_unique = idx_reader->readBits32(1);
+	int doubly_unique = idx_reader->readBit();
 	assert(doubly_unique == 1);
-	int option = idx_reader->readBits32(7);
+	int option = idx_reader->readBits(7);
 	assert(option == 32);
-	hash_len_ = idx_reader->readBits32(8);
-	uint32_t bucket = idx_reader->readBits32(32);
+	hash_len_ = idx_reader->readBits(8);
+	uint32_t bucket = idx_reader->readBits32();
 	while (bucket != END32) {
 		trieNode *root = decodeTrie_d();
 		map32[bucket] = root;
-		bucket = idx_reader->readBits32(32);
+		bucket = idx_reader->readBits32();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded index from file.\n");
@@ -1017,13 +1019,13 @@ void Hash::loadIdx32_p(std::string &fn) {
 	idx_reader = new BitReader();
 	idx_reader->openFile(fn);
 	//idx_reader->openFile("index_u2.bin2");
-	int doubly_unique = idx_reader->readBits32(1);
+	int doubly_unique = idx_reader->readBit();
 	//print()
 	//assert(doubly_unique == 1);
-	int option = idx_reader->readBits32(7);
+	int option = idx_reader->readBits(7);
 	assert(option == 32);
-	hash_len_ = idx_reader->readBits32(8);
-	uint32_t bucket = idx_reader->readBits32(32);
+	hash_len_ = idx_reader->readBits(8);
+	uint32_t bucket = idx_reader->readBits32();
 	//int fff = 0;
 	fprintf(stderr, "N: %s\n", fn.c_str());
 	fprintf(stderr, "L: %d\n", hash_len_);
@@ -1037,7 +1039,7 @@ void Hash::loadIdx32_p(std::string &fn) {
 		trieNode *root = decodeTrie_p(doubly_unique, 0);
 		//trieNode *root = decodeTrie();
 		map32[bucket] = root;
-		bucket = idx_reader->readBits32(32);
+		bucket = idx_reader->readBits32();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded index from file.\n");
@@ -1045,32 +1047,53 @@ void Hash::loadIdx32_p(std::string &fn) {
 }
 
 void Hash::loadIdx64_p(std::string &fn) {
+	auto start = std::chrono::high_resolution_clock::now();
+
 	idx_reader = new BitReader();
 	idx_reader->openFile(fn);
-	int doubly_unique = idx_reader->readBits32(1);
-	//size_t count1 = 0, count2 = 0;
+	int doubly_unique = idx_reader->readBit();
+	size_t count1 = 0, count2 = 0;
 	
-	int option = idx_reader->readBits32(7);
+	int option = idx_reader->readBits(7);
 	assert(option == 64);
-	hash_len_ = idx_reader->readBits32(8);
-	uint64_t bucket = idx_reader->readBits64(64);
+	hash_len_ = idx_reader->readBits(8);
+	uint64_t bucket = idx_reader->readBits64();
 	
 	fprintf(stderr, "N: %s\n", fn.c_str());
 	fprintf(stderr, "L: %d\n", hash_len_);
-	while (bucket != END64) {	
+	while (bucket != END64) {
+		/*1168575096146679
+		0
+		4047904091797938
+		1294735211906458
+		1963562052986519
+		2610839374132841
+		1819508562565474
+		4179598439307609
+		1862942747953436
+		1294438259600985*/
+
+		trieNode *root = decodeTrie_p(doubly_unique, 0);	
 		//fprintf(stderr, "bucket = %lu\n", bucket);
-		trieNode *root = decodeTrie_p(doubly_unique, 0);
-		/*if (root->isEnd)
+		
+		
+		if (root->isEnd) {
 			count1++;
-		else
-			count2++;*/
+			//fprintf(stderr, "RefID1 = %u; RefID2 = %u\n", ((pleafNode *) root) -> refID1, ((pleafNode *) root) -> refID2);
+			//if (bucket > 4503599627370496)
+			//abort();
+		} else
+			count2++;
 		map64[bucket] = root;
-		bucket = idx_reader->readBits64(64);
+		bucket = idx_reader->readBits64();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded index from file.\n");
-	//fprintf(stderr, "%lu; %lu", count1, count2);
+	fprintf(stderr, "Num buckets: %lu; %lu\n", count1, count2);
 	delete idx_reader;
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for query: %lu ms.\n", duration);
 }
 
 void Hash::loadIdx64_test(std::string &fn) {
@@ -1085,12 +1108,12 @@ void Hash::loadIdx64_test(std::string &fn) {
 
 	
 	idx_reader->openFile(fn_main);
-	int doubly_unique = idx_reader->readBits32(1);
-	int option = idx_reader->readBits32(7);
+	int doubly_unique = idx_reader->readBit();
+	int option = idx_reader->readBits(7);
 	fprintf(stderr, "%d, %d\n", option, doubly_unique);
 	assert(option == 64);
 	fprintf(stderr, "%d, %d\n", idx_reader->curBits, idx_reader->curByte);
-	uint64_t bucket = idx_reader->readBits64(64);
+	uint64_t bucket = idx_reader->readBits64();
 	int indicator = 0;
 
 	/* correct vals:
@@ -1126,30 +1149,30 @@ void Hash::loadIdx64_test(std::string &fn) {
 		if (doubly_unique) {
 			//uint32_t rid1 = idx_reader->read_uint32_t();
 			//uint32_t rid2 = idx_reader->read_uint32_t();
-			uint32_t rid1 = idx_reader->readBits32(32);
-			uint32_t rid2 = idx_reader->readBits32(32);
+			uint32_t rid1 = idx_reader->readBits32();
+			uint32_t rid2 = idx_reader->readBits32();
 			assert(rid1 != 0 && rid2 != 0);
 			pleaf->refID1 = rid1;
 			pleaf->refID2 = rid2;
 			//pleaf->ucount1 = idx_reader->read_uint16_t();
 			//pleaf->ucount2 = idx_reader->read_uint16_t();
-			pleaf->ucount1 = idx_reader->readBits32(16);
-			pleaf->ucount2 = idx_reader->readBits32(16);
+			pleaf->ucount1 = idx_reader->readBits16();
+			pleaf->ucount2 = idx_reader->readBits16();
 			pleaf->rcount = 0;
 			map_sp[rid1].push_back(pleaf);
 			map_sp[rid2].push_back(pleaf);	
 		} else {
 			//uint32_t rid = idx_reader->read_uint32_t();
-			uint32_t rid = idx_reader->readBits32(32);
+			uint32_t rid = idx_reader->readBits32();
 			pleaf->refID1 = rid;
 			pleaf->refID2 = 0;
 			//pleaf->ucount1 = idx_reader->read_uint16_t();
-			pleaf->ucount1 = idx_reader->readBits32(16);
+			pleaf->ucount1 = idx_reader->readBits16();
 			pleaf->rcount = 0;
 			map_sp[rid].push_back(pleaf);
 		}
 		map64[bucket] = (trieNode*) pleaf;
-		bucket = idx_reader->readBits64(64);
+		bucket = idx_reader->readBits64();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded main index from file.\n");
@@ -1157,18 +1180,18 @@ void Hash::loadIdx64_test(std::string &fn) {
 	idx_reader->reset();
 
 	idx_reader->openFile(fn_extra);
-	doubly_unique = idx_reader->readBits32(1);
+	doubly_unique = idx_reader->readBit();
 	
-	option = idx_reader->readBits32(7);
+	option = idx_reader->readBits(7);
 	assert(option == 64);
-	hash_len_ = idx_reader->readBits32(8);
-	bucket = idx_reader->readBits64(64);
+	hash_len_ = idx_reader->readBits(8);
+	bucket = idx_reader->readBits64();
 	fprintf(stderr, "N: %s\n", fn_extra.c_str());
 	fprintf(stderr, "L: %d\n", hash_len_);
 	while (bucket != END64) {	
 		trieNode *root = decodeTrie_p(doubly_unique, 0);
 		map64[bucket] = root;
-		bucket = idx_reader->readBits64(64);
+		bucket = idx_reader->readBits64();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded extra index from file.\n");
@@ -1238,16 +1261,16 @@ void Hash::loadIdx64_test(std::string &fn) {
 void Hash::loadIdx64(std::string &fn) {
 	idx_reader = new BitReader();
 	idx_reader->openFile(fn);
-	int doubly_unique = idx_reader->readBits32(1);
+	int doubly_unique = idx_reader->readBit();
 	assert(doubly_unique == 0);
-	int option = idx_reader->readBits32(7);
+	int option = idx_reader->readBits(7);
 	assert(option == 64);
-	hash_len_ = idx_reader->readBits32(8);
-	uint64_t bucket = idx_reader->readBits64(64);
+	hash_len_ = idx_reader->readBits(8);
+	uint64_t bucket = idx_reader->readBits64();
 	while (bucket != END64) {
 		trieNode *root = decodeTrie();
 		map64[bucket] = root;
-		bucket = idx_reader->readBits64(64);
+		bucket = idx_reader->readBits64();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded index from file.\n");
@@ -1257,16 +1280,16 @@ void Hash::loadIdx64(std::string &fn) {
 void Hash::loadIdx64_d(std::string &fn) {
 	idx_reader = new BitReader();
 	idx_reader->openFile(fn);
-	int doubly_unique = idx_reader->readBits32(1);
+	int doubly_unique = idx_reader->readBit();
 	assert(doubly_unique == 1);
-	int option = idx_reader->readBits32(7);
+	int option = idx_reader->readBits(7);
 	assert(option == 64);
-	hash_len_ = idx_reader->readBits32(8);
-	uint64_t bucket = idx_reader->readBits64(64);
+	hash_len_ = idx_reader->readBits(8);
+	uint64_t bucket = idx_reader->readBits64();
 	while (bucket != END64) {
 		trieNode *root = decodeTrie_d();
 		map64[bucket] = root;
-		bucket = idx_reader->readBits64(64);
+		bucket = idx_reader->readBits64();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded index from file.\n");
@@ -1326,14 +1349,14 @@ uint32_t Hash::countTrieNodes(const trieNode *root) {
  */
 void Hash::encodeTrie(const trieNode *root) {
 	if (root == NULL)
-		idx_writer->writeBits32(1, 0);
+		idx_writer->writeBit(0);
 	else {
-		idx_writer->writeBits32(1, 1);
+		idx_writer->writeBit(1);
 		for (int i = 0; i < 4; i++)
 			encodeTrie(root->children[i]);
 		if (root->isEnd) {
-			idx_writer->writeBits32(32, ((leafNode*) root)->refID);
-			idx_writer->writeBits32(16, ((leafNode*) root)->ucount);
+			idx_writer->writeBits32(((leafNode*) root)->refID);
+			idx_writer->writeBits16(((leafNode*) root)->ucount);
 			//idx_writer->writeBits32(32, ((leafNode*) root)->pos);
 		}
 	}
@@ -1341,16 +1364,16 @@ void Hash::encodeTrie(const trieNode *root) {
 
 void Hash::encodeTrie_d(const trieNode *root) {
 	if (root == NULL)
-		idx_writer->writeBits32(1, 0);
+		idx_writer->writeBit(0);
 	else {
-		idx_writer->writeBits32(1, 1);
+		idx_writer->writeBit(1);
 		for (int i = 0; i < 4; i++)
 			encodeTrie_d(root->children[i]);
 		if (root->isEnd) {
-			idx_writer->writeBits32(32, ((dleafNode*) root)->refID.first);
-			idx_writer->writeBits32(32, ((dleafNode*) root)->refID.second);
-			idx_writer->writeBits32(16, ((dleafNode*) root)->ucount.first);
-			idx_writer->writeBits32(16, ((dleafNode*) root)->ucount.second);
+			idx_writer->writeBits32(((dleafNode*) root)->refID.first);
+			idx_writer->writeBits32(((dleafNode*) root)->refID.second);
+			idx_writer->writeBits16(((dleafNode*) root)->ucount.first);
+			idx_writer->writeBits16(((dleafNode*) root)->ucount.second);
 			//idx_writer->writeBits32(32, ((dleafNode*) root)->pos.first);
 			//idx_writer->writeBits32(32, ((dleafNode*) root)->pos.second);
 		}
@@ -1379,14 +1402,14 @@ void Hash::encodeIdx32(std::string &ofn, int debug) {
 	idx_writer->openFile(ofn);
 	
 	/* Flag: doubly-unique = 0. */
-	idx_writer->writeBits32(1, 0);
+	idx_writer->writeBit(0);
 
 	/* Hash length. */
-	idx_writer->writeBits32(7, 32);
-	idx_writer->writeBits32(8, hash_len_);
+	idx_writer->writeBits(7, 32);
+	idx_writer->writeBits(8, hash_len_);
 	
 	for (auto it : map32) {
-		idx_writer->writeBits32(32, it.first);
+		idx_writer->writeBits32(it.first);
 		encodeTrie(it.second);
 	}
 	idx_writer->flush32();
@@ -1417,14 +1440,14 @@ void Hash::encodeIdx32_d(std::string &ofn, int debug) {
 	idx_writer->openFile(ofn);
 	
 	/* Flag: doubly-unique = 1. */
-	idx_writer->writeBits32(1, 1);
+	idx_writer->writeBit(1);
 
 	/* Hash length. */
-	idx_writer->writeBits32(7, 32);
-	idx_writer->writeBits32(8, hash_len_);
+	idx_writer->writeBits(7, 32);
+	idx_writer->writeBits(8, hash_len_);
 
 	for (auto it : map32) {
-		idx_writer->writeBits32(32, it.first);
+		idx_writer->writeBits32(it.first);
 		encodeTrie_d(it.second);
 	}
 	idx_writer->flush32();
@@ -1456,15 +1479,20 @@ void Hash::encodeIdx64(std::string &ofn, int debug) {
 	idx_writer->openFile(ofn);
 
 	/* Flag: doubly-unique = 0. */
-	idx_writer->writeBits32(1, 0);
+	idx_writer->writeBit(0);
 
 	/* Hash length. */
-	idx_writer->writeBits32(7, 64);
-	idx_writer->writeBits32(8, hash_len_);
+	idx_writer->writeBits(7, 64);
+	idx_writer->writeBits(8, hash_len_);
 
+	int aaaaa = 0;
 	for (auto it : map64) {
-		idx_writer->writeBits64(64, it.first);
+		if (aaaaa < 10)
+			fprintf(stderr, "%lu\n", it.first);
+		//idx_writer->writeBits64(0);
+		idx_writer->writeBits64(it.first);
 		encodeTrie(it.second);
+		aaaaa++;
 	}
 	idx_writer->flush64();
 	idx_writer->closeFile();
@@ -1477,12 +1505,12 @@ void Hash::encodeIdx64_d(std::string &ofn, int debug) {
 	idx_writer = new BitWriter();
 	idx_writer->openFile(ofn);
 
-	idx_writer->writeBits32(1, 1);
-	idx_writer->writeBits32(7, 64);
-	idx_writer->writeBits32(8, hash_len_);
+	idx_writer->writeBit(1);
+	idx_writer->writeBits(7, 64);
+	idx_writer->writeBits(8, hash_len_);
 	
 	for (auto it : map64) {
-		idx_writer->writeBits64(64, it.first);
+		idx_writer->writeBits64(it.first);
 		encodeTrie_d(it.second);
 	}
 	idx_writer->flush64();
@@ -1499,10 +1527,10 @@ void Hash::encodeIdx64_temp(std::string &ofn_main, std::string &ofn_extra, int d
 	int indicator = 0;
 
 	if (du)
-		idx_writer->writeBits32(1, 1);
+		idx_writer->writeBit(1);
 	else
-		idx_writer->writeBits32(1, 0);
-	idx_writer->writeBits32(7, 64);
+		idx_writer->writeBit(0);
+	idx_writer->writeBits(7, 64);
 	//idx_writer->writeBits32(8, hash_len_);
 	
 	for (auto it : map64) {
@@ -1511,15 +1539,15 @@ void Hash::encodeIdx64_temp(std::string &ofn_main, std::string &ofn_extra, int d
 				fprintf(stderr, "%lu\n", it.first);
 				indicator++;
 			}
-			idx_writer->writeBits64(64, it.first);
+			idx_writer->writeBits64(it.first);
 			if (du) {
-				idx_writer->writeBits32(32, ((pleafNode*) it.second)->refID1);
-				idx_writer->writeBits32(32, ((pleafNode*) it.second)->refID2);
-				idx_writer->writeBits32(16, ((pleafNode*) it.second)->ucount1);
-				idx_writer->writeBits32(16, ((pleafNode*) it.second)->ucount2);
+				idx_writer->writeBits32(((pleafNode*) it.second)->refID1);
+				idx_writer->writeBits32(((pleafNode*) it.second)->refID2);
+				idx_writer->writeBits16(((pleafNode*) it.second)->ucount1);
+				idx_writer->writeBits16(((pleafNode*) it.second)->ucount2);
 			} else {
-				idx_writer->writeBits32(32, ((pleafNode*) it.second)->refID1);
-				idx_writer->writeBits32(16, ((pleafNode*) it.second)->ucount1);
+				idx_writer->writeBits32(((pleafNode*) it.second)->refID1);
+				idx_writer->writeBits16(((pleafNode*) it.second)->ucount1);
 			}
 		}
 	}
@@ -1530,15 +1558,15 @@ void Hash::encodeIdx64_temp(std::string &ofn_main, std::string &ofn_extra, int d
 	idx_writer->reset();
 	idx_writer->openFile(ofn_extra);
 	if (du)
-		idx_writer->writeBits32(1, 1);
+		idx_writer->writeBit(1);
 	else
-		idx_writer->writeBits32(1, 0);
-	idx_writer->writeBits32(7, 64);
-	idx_writer->writeBits32(8, hash_len_);
+		idx_writer->writeBit(0);
+	idx_writer->writeBits(7, 64);
+	idx_writer->writeBits(8, hash_len_);
 	
 	for (auto it : map64) {
 		if (!it.second->isEnd) {
-			idx_writer->writeBits64(64, it.first);
+			idx_writer->writeBits64(it.first);
 			encodeTrie_temp(it.second, du);
 		}
 	}
@@ -1551,20 +1579,20 @@ void Hash::encodeIdx64_temp(std::string &ofn_main, std::string &ofn_extra, int d
 
 void Hash::encodeTrie_temp(const trieNode *root, int du) {
 	if (root == NULL)
-		idx_writer->writeBits32(1, 0);
+		idx_writer->writeBit(0);
 	else {
-		idx_writer->writeBits32(1, 1);
+		idx_writer->writeBit(1);
 		for (int i = 0; i < 4; i++)
 			encodeTrie_temp(root->children[i], du);
 		if (root->isEnd) {
 			if (du) {
-				idx_writer->writeBits32(32, ((pleafNode*) root)->refID1);
-				idx_writer->writeBits32(32, ((pleafNode*) root)->refID2);
-				idx_writer->writeBits32(16, ((pleafNode*) root)->ucount1);
-				idx_writer->writeBits32(16, ((pleafNode*) root)->ucount2);
+				idx_writer->writeBits32(((pleafNode*) root)->refID1);
+				idx_writer->writeBits32(((pleafNode*) root)->refID2);
+				idx_writer->writeBits16(((pleafNode*) root)->ucount1);
+				idx_writer->writeBits16(((pleafNode*) root)->ucount2);
 			} else {
-				idx_writer->writeBits32(32, ((pleafNode*) root)->refID1);
-				idx_writer->writeBits32(16, ((pleafNode*) root)->ucount1);
+				idx_writer->writeBits32(((pleafNode*) root)->refID1);
+				idx_writer->writeBits16(((pleafNode*) root)->ucount1);
 			}
 		}
 	}

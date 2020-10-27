@@ -1,6 +1,7 @@
 #ifndef FQREADER_HPP_
 #define FQREADER_HPP_
 
+#include <pthread.h>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
@@ -54,6 +55,9 @@ class FqReader {
 		std::string OUTPUTFILE;
 
 	public:
+		int tid_ = 0;
+		pthread_mutex_t thread_lock;
+		
 		FqReader(int, int, uint32_t, std::string&, std::string&);
 		FqReader(int, uint32_t, std::string&, uint32_t, std::string&, std::string&);
 		FqReader(int, uint32_t, std::string&, uint32_t, std::string&, std::string&, std::string&, float);
@@ -64,6 +68,10 @@ class FqReader {
 
 		void loadIdx();
 		void loadIdx_p();
+		void* loadIdx_p__();
+		static void *loadIdx_p_(void *obj) {
+			return ((FqReader*) obj)->loadIdx_p__();
+		}
 
 		void loadSmap();
 		void loadGenomeLength();

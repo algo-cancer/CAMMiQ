@@ -1,7 +1,3 @@
-/* 
-	Extracted (and modified) from AssemblTire.
-	see https://github.com/kyzhu/assembltrie/
- */
 #include "binaryio.hpp"
 
 BitWriter::BitWriter() {
@@ -9,35 +5,17 @@ BitWriter::BitWriter() {
 	curByte = 0;
 }
 
-uint32_t lowBits32(int count, uint32_t value) {
-	return (uint32_t) ((value & END32) & ((1 << count) - 1));
-}
-
-int highBits32(int begin, int count, uint32_t value) {
-	return (int) (value >> (begin - count));
-}
-
-uint64_t lowBits64(int count, uint64_t value) {
-	return (uint64_t) ((value & END64) & ((1L << count) - 1));
-}
-
-int highBits64(int begin, int count, uint64_t value) {
-	return (int) (value >> (begin - count));
-}
-
 /* 
-	Writes the lowest COUNT bits of VALUE to file. 
+	Writes the 1/16/32/64 bits VALUE to file. 
  */
-void BitWriter::writeBits32(int count, uint32_t value) {
+void BitWriter::writeBit(bool value) {
+	int count = 1;
 	/* Write next byte when available */
 	try {
-		while (curBits + count >= BYTE) {
-			int toWrite = BYTE - curBits;
-			curByte = (curByte << toWrite) + highBits32(count, toWrite, value);
-			count -= toWrite;
-			value = lowBits32(count, value);
-
-			stream.write((char*) &curByte, 1);
+		if (curBits + count >= BYTE) {
+			curByte = (curByte << 1) + value;
+			count -= 1;
+			stream_AUX.write((char*) &curByte, 1);
 			curByte = 0;
 			curBits = 0;
 		}
@@ -46,54 +24,108 @@ void BitWriter::writeBits32(int count, uint32_t value) {
 	}
 
 	/* Add to current byte */
-	curByte = (curByte << count) + lowBits32(count, value);
+	curByte = (curByte << count) + ((count == 1) ? value : 0);
 	curBits += count;
 }
 
-void BitWriter::writeBits64(int count, uint64_t value) {
-	/* Write next byte when available */
-	try {
-		while (curBits + count >= BYTE) {
-			int toWrite = BYTE - curBits;
-			curByte = (curByte << toWrite) + highBits64(count, toWrite, value);
-			count -= toWrite;
-			value = lowBits64(count, value);
+void BitWriter::writeBits(int count, uint32_t value) {
+	bool value_;
+	for (int i = 0; i < count; i++) {
+		value_ = ((value >> (count - 1 - i)) & 0x1);
+		writeBit(value_);
+	}
+}
 
-			stream.write((char*) &curByte, 1);
-			curByte = 0;
-			curBits = 0;
-		}
+void BitWriter::writeBits16(uint32_t value) {
+	try {
+		int value_ = (value >> 8) & 0xFF;
+		stream_INT.write((char*) &value_, 1);
+		value_ = value & 0xFF;
+		stream_INT.write((char*) &value_, 1);
+		/*uint32_t value_ = (value << 16);
+		stream_INT.write((char*) &value_, 2);*/
 	} catch (std::ofstream::failure e) {
 		fprintf(stderr, "Exception writing to file.\n");
 	}
+}
 
-	/* Add to current byte */
-	curByte = (curByte << count) + lowBits64(count, value);
-	curBits += count;
+void BitWriter::writeBits32(uint32_t value) {
+	try {
+		for (int i = 0; i < 4; i++) {
+			int value_ = (value >> (8 * (3 - i))) & 0xFF;
+			stream_INT.write((char*) &value_, 1);
+		}
+		//uint32_t value_ = value;
+		//stream_INT.write((char*) &value_, 4);
+	} catch (std::ofstream::failure e) {
+		fprintf(stderr, "Exception writing to file.\n");
+	}
+}
+
+void BitWriter::writeBits64(uint64_t value) {
+	try {
+		/*if (test == 0)
+			fprintf(stderr, "--------%lu; %lu\n", value, sizeof(value));
+		test++;
+		uint64_t value_ = value;
+		stream_INT.write((char*) &value_, 8);*/
+		for (int i = 0; i < 8; i++) {
+			int value_ = (value >> (8 * (7 - i))) & 0xFF;
+			stream_INT.write((char*) &value_, 1);
+		}
+		//uint64_t value_ = value;
+		//stream_INT.write((char*) &value_, 8);
+
+	} catch (std::ofstream::failure e) {
+		fprintf(stderr, "Exception writing to file.\n");
+	}
 }
 
 void BitWriter::openFile(const std::string &ofn) {
-	try { 
-		stream.open(ofn.c_str(), std::ios::out | std::ios::binary); 
+	try {
+		std::string aux_fn = ofn + ".aux";
+		stream_INT.open(ofn.c_str(), std::ios::out | std::ios::binary);
+		stream_AUX.open(aux_fn.c_str(), std::ios::out | std::ios::binary); 
 	} catch (std::ofstream::failure e) { 
 		fprintf(stderr, "Cannot open file: %s.\n", ofn.c_str()); 
 	}
 }
 
 void BitWriter::flush32() {
-	writeBits32(32, END32);
-	writeBits32(8, 255);
+	flush32i();
+	flush32a();
+}
+
+void BitWriter::flush32i() {
+	for (int i = 0; i < 40; i++)
+		writeBit(1);
+}
+
+void BitWriter::flush32a() {
+	writeBits32(END32);
+	writeBits16(END32);
 }
 
 void BitWriter::flush64() {
-	writeBits64(64, END64);
-	writeBits64(8, 255);
+	flush64i();
+	flush64a();
+}
+
+void BitWriter::flush64i() {
+	for (int i = 0; i < 72; i++)
+		writeBit(1);
+}
+
+void BitWriter::flush64a() {
+	writeBits64(END64);
+	writeBits16(END32);
 }
 
 void BitWriter::closeFile() {
 	/* Close file. */ 
-	try { 
-		stream.close(); 
+	try {
+		stream_INT.close();
+		stream_AUX.close(); 
 	} catch (std::ofstream::failure e) {
 		fprintf(stderr, "Exception closing file.\n");
 	} 
@@ -104,109 +136,76 @@ BitReader::BitReader() {
 	curByte = 0;
 }
 
-uint32_t BitReader::readBits32(int count) {
-	int curShift = 0;
+uint32_t BitReader::readBit() {
 	uint32_t value = 0;
-	int need = count;
-	try {
-		while (need > curBits) {
-			value = (value << curShift) + lowBits32(curBits, curByte);
-			need -= curBits;
-			curShift = BYTE;
-			curBits = BYTE;
-			if (!stream.eof())
-			//if (cur < fsize) {
-				stream.read((char*) &curByte, 1);
-			/*	curByte = file[cur++];
-			} else
-				curByte = -1;*/
-		}
-	} catch (std::ifstream::failure e) {
-		fprintf(stderr, "Exception reading file.\n");
+	
+	if (curBits == 0) {
+		curBits = BYTE;
+		if (cur_AUX < fsize_AUX)
+			curByte = buffer_AUX[cur_AUX++];
+		else
+			curByte = -1;
 	}
-	value = (value << need) + (lowBits32(curBits, curByte) >> (curBits - need));
-	curBits -= need;
+	
+	value = ((curByte >> (curBits - 1)) & 0x1u);
+	curBits -= 1;
 	return value;
 }
 
-uint64_t BitReader::readBits64(int count) {
-	int curShift = 0;
-	uint64_t value = 0;
-	int need = count;
-	try {
-		while (need > curBits) {
-			value = (value << curShift) + lowBits64(curBits, curByte);
-			need -= curBits;
-			curShift = BYTE;
-			curBits = BYTE;
-			if (!stream.eof())
-				stream.read((char*) &curByte, 1);
-			/*if (cur < fsize) 
-				curByte = file[cur++];
-			else
-				curByte = -1;*/
-		}
-	} catch (std::ifstream::failure e) {
-		fprintf(stderr, "Exception reading file.\n");
-	}
-	value = (value << need) + (lowBits64(curBits, curByte) >> (curBits - need));
-	curBits -= need;
+uint32_t BitReader::readBits(int count) {
+	uint32_t value = 0;
+	for (int i = 0; i < count; i++)
+		value = (value << 1) + readBit();
 	return value;
 }
 
-uint16_t BitReader::read_uint16_t() {
-	uint16_t value;
-	try {
-		stream.read((char*) &value, 2);
-	} catch (std::ifstream::failure e) {
-		fprintf(stderr, "Exception reading file.\n");
-	}
+uint16_t BitReader::readBits16() {
+	//fprintf(stderr, "buffer_INT[8] = %d", buffer_INT[8]);
+	uint16_t value = buffer_INT[cur_INT++] & 0xFF;
+	value = ((value << 8) | (buffer_INT[cur_INT++] & 0xFF));
 	return value;
 }
 
-uint32_t BitReader::read_uint32_t() {
-	uint32_t value;
-	try {
-		stream.read((char*) &value, 4);
-	} catch (std::ifstream::failure e) {
-		fprintf(stderr, "Exception reading file.\n");
-	}
+uint32_t BitReader::readBits32() {
+	uint32_t value = (buffer_INT[cur_INT++] & 0xFF);
+	for (int i = 0; i < 3; i++)
+		value = ((value << 8) | (buffer_INT[cur_INT++] & 0xFF));
 	return value;
 }
 
-uint64_t BitReader::read_uint64_t() {
-	uint64_t value = 0;
-	/*try {
-		stream.read(buffer, 8);
-	} catch (std::ifstream::failure e) {
-		fprintf(stderr, "Exception reading file.\n");
-	}*/
+uint64_t BitReader::readBits64() {
+	//fprintf(stderr, "value: %d, %d\n",  buffer_INT[0], buffer_INT[1]);
+	uint64_t value = buffer_INT[cur_INT++] & 0xFF;
+	for (int i = 0; i < 7; i++) {
+		//fprintf(stderr, "value: %lu, %d\n", value, buffer_INT[cur_INT]);
+		value = ((value << 8) | (buffer_INT[cur_INT++] & 0xFF));
+	}
 	return value;
 }
-
-/*void init_buffer(int len) {
-	buffer = new char[len];
-}
-
-void read_to_buffer(int len) {
-	try {
-		stream.read(buffer, len);
-	} catch (std::ifstream::failure e) {
-		fprintf(stderr, "Exception reading file.\n");
-	}
-}*/
 
 void BitReader::openFile(const std::string &fn) {
 	try {
-		stream.open(fn.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+		std::string aux_fn = fn + ".aux";
+		//stream_INT.open(fn.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+		stream_INT.open(fn.c_str(), std::ios::in | std::ios::binary);
+		stream_AUX.open(aux_fn.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
 		
-		stream.seekg(0, std::ios::beg);
-		//char nextByte = 0;
-		/*while(!stream.eof()) {
-			stream.read((char*) &nextByte, 1);
-			file.push_back(nextByte);
-			fsize++;
-		}*/
+		stream_INT.seekg(0, std::ios::end);
+		fsize_INT = stream_INT.tellg();
+		//fprintf(stderr, "%lu\n", fsize_INT);
+		buffer_INT = new char[fsize_INT + 100];
+		//buffer_INT = new char[10000];
+		//fprintf(stderr, "%d\n", buffer_INT[0]);
+		stream_INT.seekg(0, std::ios::beg);
+		stream_INT.read(buffer_INT, fsize_INT);
+		//stream_INT.read(buffer_INT, 1000);
+		//fprintf(stderr, "%d\n", buffer_INT[0]);
+
+		stream_AUX.seekg(0, std::ios::end);
+		fsize_AUX = stream_AUX.tellg();
+		buffer_AUX = new char[fsize_AUX + 100];
+		stream_AUX.seekg(0, std::ios::beg);
+		stream_AUX.read(buffer_AUX, fsize_AUX);
 	} catch (std::ifstream::failure e) {
 		fprintf(stderr, "File does not exist.\n");
 	}
@@ -214,8 +213,8 @@ void BitReader::openFile(const std::string &fn) {
 
 void BitReader::closeFile() {
 	try {
-		stream.close();
-		//file.clear();
+		stream_INT.close();
+		stream_AUX.close();
 	} catch (std::ifstream::failure e) {
 		fprintf(stderr, "Exception closing file.\n");
 	}

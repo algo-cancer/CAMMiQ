@@ -10,7 +10,9 @@
 
 class BitWriter {
 	public:
-		std::ofstream stream;
+		int test = 0;
+		std::ofstream stream_INT;
+		std::ofstream stream_AUX;
 		int curByte = 0;
 		int curBits = 0;
 		BitWriter();
@@ -18,10 +20,19 @@ class BitWriter {
 		}
 
 		void openFile(const std::string &ofn);
-		void writeBits32(int, uint32_t);
-		void writeBits64(int, uint64_t);	
+
+		void writeBit(bool);
+		void writeBits(int, uint32_t);
+		void writeBits16(uint32_t);
+		void writeBits32(uint32_t);
+		void writeBits64(uint64_t);
+
 		void flush32();
 		void flush64();
+		void flush32i();
+		void flush32a();
+		void flush64i();
+		void flush64a();
 		void closeFile();
 		void reset() {
 			curBits = 0;
@@ -32,35 +43,34 @@ class BitWriter {
 
 class BitReader {
 	public:
-		std::ifstream stream;
+		std::ifstream stream_INT;
+		std::ifstream stream_AUX;
 		int curBits = 0;
 		int curByte = 0;
-		//size_t cur = 0, fsize = 0;
-		//std::vector<char> file;
-		char* buffer = NULL;
-		//int test = 0;
+		size_t cur_INT = 0, cur_AUX = 0;
+		size_t fsize_INT = 0, fsize_AUX = 0;
+		char* buffer_INT = NULL;
+		char* buffer_AUX = NULL;
 
 		/* Contructors */
 		BitReader();
 		~BitReader() {
+			delete []buffer_INT;
+			delete []buffer_AUX;
 		}
 
 		void openFile(const std::string &fn);
-		uint32_t readBits32(int);
-		uint64_t readBits64(int);
 
-		uint16_t read_uint16_t();
-		uint32_t read_uint32_t();
-		uint64_t read_uint64_t();
-
-		//void init_buffer(int);
-		//void read_to_buffer(int);
+		uint32_t readBit();
+		uint32_t readBits(int);
+		uint16_t readBits16();
+		uint32_t readBits32();
+		uint64_t readBits64();
 
 		void closeFile();
 		void reset() {
 			curBits = 0;
 			curByte = 0;
-			delete []buffer;
 		}
 };
 
