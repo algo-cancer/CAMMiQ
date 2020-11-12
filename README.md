@@ -60,9 +60,24 @@ You'll need to run ```./cammiq --build [options]``` from command line, where ```
 
 #### How do I query the collection of (metagenomic) reads?
 You'll need to run ```./cammiq --query [options]``` from command line, where ```[options]``` specifies the following list of (possibly mandatory) parameters.
-* ```-f <INPUT_FILES>```
-* ```-d <FASTA_DIR>```
-* ```-o <OUTPUT_FILE>```
-* ```-e <int>```
-* ```-h <int>|<int1 int2>```
-* ```-t <int>```
+* ```-f <MAP_FILE>``` **Mandatory**.
+* ```-q (-Q) <QUERY_FILE>``` **Mandatory**.
+* ```-I <INDEX_DIR>``` **Mandatory**.
+* ```-o <OUTPUT_FILE>``` **Optional (but strongly recommended)**.
+Here is an example of ```<OUTPUT_FILE>```
+```
+TAXID	ABUNDANCE	NAME
+1795	0.052824	Mycolicibacterium neoaurum VKM Ac-1815D
+2105	0.045993	Mycoplasma leachii PG50
+547143	0.051095	Hydrogenobaculum sp. 3684
+547145	0.048998	Hydrogenobaculum sp. SHO
+547146	0.042636	Hydrogenobaculum sp. SN
+1476577	0.044080	Candidatus Saccharibacteria oral taxon TM7x
+......
+```
+
+* ```-e <int>``` **Optional (but strongly recommended)**.
+* ```-h <int>|<int1 int2>``` **Optional (but need special attention)**. 
+* ```-t <int>``` **Optional**.
+
+
