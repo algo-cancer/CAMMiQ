@@ -126,10 +126,11 @@ void FqReader::loadSmap() {
 	
 	while (std::getline(inputFile, line)) {
 		std::istringstream lines(line);
-		lines >> gname;
-		lines >> id;
-		lines >> taxid;
-		lines >> gname;
+		while(std::getline(lines, gname, '\t')) {
+			std::getline(lines, id, '\t');
+			std::getline(lines, taxid, '\t');
+			std::getline(lines, gname, '\t');
+		}
 		Genome *new_genome = new Genome((uint32_t) stoi(taxid), gname);
 		genomes.push_back(new_genome);
 	}
@@ -636,18 +637,29 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 		cplex.setParam(IloCplex::NumParam::TiLim, 10800);
 		cplex.setParam(IloCplex::NumParam::SolnPoolAGap, 0.0);
 
-		if (cplex.populate()) {
-			int nsolns = cplex.getSolnPoolNsolns();
-			for (int s = 0; s < nsolns; s++) {
+		if (cplex.solve()) {
+			//int nsolns = cplex.getSolnPoolNsolns();
+			//for (int s = 0; s < nsolns; s++) {
 				//fprintf(fout, "\nk = %d; Objective = %.4f.\n", k, cplex.getObjValue(s));
-				fprintf(fout, "\nSolution %d:\n", s);
+				//fprintf(fout, "\nSolution %d:\n", s);
+				fprintf(fout, "TAXID\tABUNDANCE\tNAME\n");
+				double total_cov = 0.0;
+				std::vector<size_t> cplex_solution;
 				for (size_t i = 0; i < n_species; i++) {
-					bool ei = cplex.getValue(EXIST[i], s);
-					float ci = cplex.getValue(COV[i], s);
-					if (ei != 0)
-						fprintf(fout, "%u\t%d\t%.4f\n", genomes[i + 1]->taxID, ei, ci);
+					//bool ei = cplex.getValue(EXIST[i], s);
+					//float ci = cplex.getValue(COV[i], s);
+					bool ei = cplex.getValue(EXIST[i]);
+					double ci = cplex.getValue(COV[i]);
+					if (ei != 0) {
+						total_cov += ci;
+						cplex_solution.push_back(i);
+						//fprintf(fout, "%u\t%d\t%.4f\n", genomes[i + 1]->taxID, ei, ci);
+					}
 				}
-			}
+				for (auto si : cplex_solution)
+					fprintf(fout, "%u\t%.6f\t%s\n", genomes[si + 1]->taxID,
+						cplex.getValue(COV[si]) / total_cov, genomes[si + 1]->name.c_str());
+			//}
 		}
 
 		fclose(fout);

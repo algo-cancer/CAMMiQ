@@ -1052,7 +1052,7 @@ void Hash::loadIdx64_p(std::string &fn) {
 	idx_reader = new BitReader();
 	idx_reader->openFile(fn);
 	int doubly_unique = idx_reader->readBit();
-	size_t count1 = 0, count2 = 0;
+	//size_t count1 = 0, count2 = 0;
 	
 	int option = idx_reader->readBits(7);
 	assert(option == 64);
@@ -1077,19 +1077,19 @@ void Hash::loadIdx64_p(std::string &fn) {
 		//fprintf(stderr, "bucket = %lu\n", bucket);
 		
 		
-		if (root->isEnd) {
-			count1++;
+		//if (root->isEnd) {
+		//	count1++;
 			//fprintf(stderr, "RefID1 = %u; RefID2 = %u\n", ((pleafNode *) root) -> refID1, ((pleafNode *) root) -> refID2);
 			//if (bucket > 4503599627370496)
 			//abort();
-		} else
-			count2++;
+		//} else
+		//	count2++;
 		map64[bucket] = root;
 		bucket = idx_reader->readBits64();
 	}
 	idx_reader->closeFile();
 	fprintf(stderr, "Loaded index from file.\n");
-	fprintf(stderr, "Num buckets: %lu; %lu\n", count1, count2);
+	//fprintf(stderr, "Num buckets: %lu; %lu\n", count1, count2);
 	delete idx_reader;
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 			(std::chrono::high_resolution_clock::now() - start).count();
