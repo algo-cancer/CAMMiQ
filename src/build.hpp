@@ -25,12 +25,6 @@ class FastaReader {
 		uint32_t M_ = 0;
 		uint32_t C_ = 0;
 		int max_rid = 0;
-		
-		//new: keep the positions
-		//uint32_t ci_inserted = 0;
-		//uint64_t last_inserted_i = 0;
-		//uint64_t last_inserted_l = 0;
-		//std::unordered_map<uint32_t, uint32_t> uc_cnts;
 
 		/* The input reference sequences. */
 		std::vector<uint8_t*> seqs;
@@ -69,8 +63,8 @@ class FastaReader {
 		std::vector<uint32_t> uLmcount_clark; 
 
 		/* Constructors. */
-		FastaReader(int, int, int);
-		FastaReader(int, int, int, std::vector<std::string>&); 
+		FastaReader(int, int, int, int);
+		FastaReader(int, int, int, int, std::vector<std::string>&); 
 		~FastaReader() {
 			for (auto seq : seqs)
 				if (seq != NULL)

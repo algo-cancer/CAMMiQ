@@ -16,8 +16,9 @@
 
 int FastaReader::mode_;
 
-FastaReader::FastaReader(int L_, int K, int t) {
+FastaReader::FastaReader(int L_, int Lm_, int K, int t) {
 	L = L_;
+	maxuL = (uint32_t) Lm_;
 	minuL = K;
 	num_threads = t;
 	if (!filenames.empty()) filenames.clear();
@@ -29,8 +30,9 @@ FastaReader::FastaReader(int L_, int K, int t) {
 	seqs.push_back(seq0);
 }
 
-FastaReader::FastaReader(int L_, int K, int t, std::vector<std::string>& fns_) {
+FastaReader::FastaReader(int L_, int Lm_, int K, int t, std::vector<std::string>& fns_) {
 	L = L_;
+	maxuL = (uint32_t) Lm_;
 	minuL = K;
 	num_threads = t;
 	if (!filenames.empty()) filenames.clear();

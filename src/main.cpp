@@ -21,15 +21,22 @@ bool validFile(const char* _file) {
 void printUsage() {
 	fprintf(stderr, "\n");
 	fprintf(stderr, "CAMMiQ: Metagenomic microbial abundance quantification.\n\n");
-	fprintf(stderr, "Usage: ./cammiq --<option> parameters\n\n");
+	fprintf(stderr, "Usage: ./cammiq --<options> (--<options_for_build> or --<options_for_query>) parameters\n\n");
 	fprintf(stderr, "Definitions of parameters: \n\n");
-	fprintf(stderr, "option = build | query .\n");
+	fprintf(stderr, "options = build | query.\n");
+	fprintf(stderr, "options_for_build = unique | doubly_unique | both.\n");
+	fprintf(stderr, "options_for_query = read_cnts | doubly_unique.\n");
 	fprintf(stderr, "-k <integer>,\t minimum substring length: integer, >= 5 and <= read length. Default value is 26.\n");
+	fprintf(stderr, "-Lmax <integer>,\t maximum substring length: integer, > k and <= read length. Default value is 50.\n");
 	fprintf(stderr, "-L <integer>,\t read length: integer, default value is 100.\n");
-	fprintf(stderr, "-h <integer>,\t hash length: integer, default value is 26.\n");
-	fprintf(stderr, "-f <string>,\t file names separated by space.\n");
-	fprintf(stderr, "-d <string>,\t directoty containing the fasta or fastq files. \n");
-	fprintf(stderr, "-i <string>,\t indexing options: one in unique | doubly_unique | both.\n");
+	fprintf(stderr, "-h <integers>,\t hash length(s): integer, default value is 26.\n");
+	fprintf(stderr, "-f <strings>,\t map file name and possibly other file names separated by space.\n");
+	fprintf(stderr, "-D <string>,\t directoty containing the fasta files.\n");
+	fprintf(stderr, "-Q <string>,\t directoty containing the fastq files.\n");
+	fprintf(stderr, "-q <strings>,\t querying file names separated by space.\n");
+	fprintf(stderr, "-i <strings>,\t indexing file names separated by space.\n");
+	fprintf(stderr, "-o <string>,\t output file name.\n");
+	fprintf(stderr, "-e <float>,\t expected sequencing error probability in queries.\n");
 	fprintf(stderr, "-t <integer>,\t number of threads. \n\n");
 	fprintf(stderr, "--help,\t to print user options.\n");
 	//fprintf(stderr, "--version,\t to print the version information.\n\n");
@@ -47,13 +54,13 @@ int main(int argc, char** argv) {
 	}
 
 	/* Check the parameters. */
-	int K = 26, L = 100, t = 1, h = -1, h1 = -1, h2 = -1;
+	int K = -1, Lmax = -1, L = -1, t = 1, h = -1, h1 = -1, h2 = -1;
 	std::string fa_name = "", fa_dir = "", fm_name = "", fi_name = "", fq_name = "", fq_dir = "";
 	std::vector<std::string> fa_names;
 	std::vector<std::string> fq_names;
 	FastaReader *main_fr = NULL;
 	FqReader *main_fqr = NULL;
-	int mode = 0;
+	int mode = -1;
 	std::string idx_option;
 	std::string output;
 	float erate = 0.01;
@@ -67,6 +74,42 @@ int main(int argc, char** argv) {
 		}
 		if (val == "--query") {
 			mode = 1;
+			continue;
+		}
+		if (val == "--unique") {
+			if (mode > 0) {
+				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			i++;
+			idx_option = "unique";
+			continue;
+		}
+		if (val == "--doubly_unique") {
+			if (mode > 0) {
+				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			i++;
+			idx_option = "doubly_unique";
+			continue;
+		}
+		if (val == "--both") {
+			if (mode > 0) {
+				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			i++;
+			idx_option = "both";
+			continue;
+		}
+		if (val == "--read_cnts") {
+			if (mode <= 0) {
+				fprintf(stderr, "Option --read_cnts is only valid in mode QUERY.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			i++;
+			//idx_option = "both";
 			continue;
 		}
 		if (val == "-k") {
@@ -90,6 +133,10 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Parameter L is only valid in mode BUILD.\n"); 
 				exit(EXIT_FAILURE);
 			}
+			if (K < 0) {
+				fprintf(stderr, "Please first specify a valid value of k.\n"); 
+				exit(EXIT_FAILURE);
+			}
 			if (++i >= argc) {
 				fprintf(stderr, "Please specify the read length / maximum unique substring length.\n"); 
 				exit(EXIT_FAILURE);
@@ -101,20 +148,74 @@ int main(int argc, char** argv) {
 			}
 			continue;
 		}
-		if (val == "-i") {
-			if (++i >= argc) {
-				fprintf(stderr, "Please specify indexing options.\n"); 
+		if (val == "-Lmax") {
+			if (mode > 0) {
+				fprintf(stderr, "Parameter Lmax is only valid in mode BUILD.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			idx_option = argv[i];
+			if (L < 0) {
+				fprintf(stderr, "Please first specify a valid value of L.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify the maximum substring length.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			Lmax = atoi(argv[i]); 
+			if (Lmax < K + 1 || Lmax > L) {
+				fprintf(stderr, "The max substring length should be in range [%d, %d].\n", K + 1, L); 
+				exit(EXIT_FAILURE);
+			}
+			continue;
+		}
+		if (val == "-i") {
+			if (mode <= 0) {
+				fprintf(stderr, "Parameter i is only valid in mode QUERY.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify index file names.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			while (i < argc && argv[i][0] != '-') {
+				std::string filename = argv[i++];
+				std::string ext = filename.substr(filename.find_last_of(".") + 1);
+				if (ext == "idx" || ext == "bin")
+					fi_name = filename;
+				if (ext == "idx1" || ext == "bin1")
+					i1fn = filename;
+				if (ext == "idx2" || ext == "bin2")
+					i2fn = filename;
+			}
+			i--;
 			continue;
 		}
 		if (val == "-o") {
-			output = argv[++i];
+			if (mode <= 0) {
+				fprintf(stderr, "Parameter o is only valid in mode QUERY.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify an output file name.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			output = argv[i];
 			continue;
 		}
 		if (val == "-e") {
-			erate = std::stof(argv[++i]);
+			if (mode <= 0) {
+				fprintf(stderr, "Parameter e is only valid in mode QUERY.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify the expected sequencing error rate.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			erate = std::stof(argv[i]);
+			if (erate < 0.0 || erate > 0.2) {
+				fprintf(stderr, "The error rate should be in range [0, 0.2].\n"); 
+				exit(EXIT_FAILURE);
+			}
 			continue;
 		}
 		if (val == "-h") {
@@ -139,6 +240,10 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "The hash length should be in range [5, 31].\n"); 
 				exit(EXIT_FAILURE);
 			}
+			if ((h > K) || (h1 > K) || (h2 > K)) {
+				fprintf(stderr, "The hash length should be less than or equal to k.\n"); 
+				exit(EXIT_FAILURE);
+			}
 			continue;
 		}
 		if (val == "-t") {
@@ -159,25 +264,9 @@ int main(int argc, char** argv) {
 				case 1:
 					while (i < argc && argv[i][0] != '-') {
 						std::string filename = argv[i++];
-						//fprintf(stderr, "%s", filename.c_str());
 						std::string ext = filename.substr(filename.find_last_of(".") + 1);
-						if (ext == "fq" || ext == "fastq") {
-							fq_name = filename;
-							if (validFile(fq_name.c_str()))
-								fq_names.push_back(fq_name);
-							else {
-								fprintf(stderr, "Failed to find input file %s.\n", fq_name.c_str());
-								exit(EXIT_FAILURE);
-							}
-						}
 						if (ext == "out" || ext == "map")
 							fm_name = filename;
-						if (ext == "idx" || ext == "bin")
-							fi_name = filename;
-						if (ext == "idx1" || ext == "bin1")
-							i1fn = filename;
-						if (ext == "idx2" || ext == "bin2")
-							i2fn = filename;
 					}
 					i--;
 					break;
@@ -203,40 +292,72 @@ int main(int argc, char** argv) {
 			}
 			continue;
 		}
-		if (val == "-d") {
-			switch (mode) {
-				case 1: //fastq directory
-					if (++i >= argc) {
-						fprintf(stderr, "Please specify the directory containing fastq files.\n"); 
+		if (val == "-q") {
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify query file names.\n");
+				exit(EXIT_FAILURE);
+			}
+			while (i < argc && argv[i][0] != '-') {
+				std::string filename = argv[i++];
+				std::string ext = filename.substr(filename.find_last_of(".") + 1);
+				if (ext == "fq" || ext == "fastq") {
+					fq_name = filename;
+					if (validFile(fq_name.c_str()))
+						fq_names.push_back(fq_name);
+					else {
+						fprintf(stderr, "Failed to find input file %s.\n", fq_name.c_str());
 						exit(EXIT_FAILURE);
 					}
-					fq_dir = argv[i];
-					if (!validFile(fq_dir.c_str())) {
-						fprintf(stderr, "Failed to find input directory %s.\n", fq_dir.c_str());
-						exit(EXIT_FAILURE);
-					}
-					break;
-				default: // fasta directory
-					if (++i >= argc) {
-						fprintf(stderr, "Please specify the directory containing fasta files.\n"); 
-						exit(EXIT_FAILURE);
-					}
-					fa_dir = argv[i];
-					if (!validFile(fa_dir.c_str())) {
-						fprintf(stderr, "Failed to find input directory %s.\n", fa_dir.c_str());
-						exit(EXIT_FAILURE);
-					}
-					break;
+				}
+			}
+			i--;
+			continue;
+		}
+		if (val == "-Q") {
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify the directory containing fastq files.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			fq_dir = argv[i];
+			if (!validFile(fq_dir.c_str())) {
+				fprintf(stderr, "Failed to find input directory %s.\n", fq_dir.c_str());
+				exit(EXIT_FAILURE);
+			}
+			continue;
+		}
+		if (val == "-D") {
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify the directory containing fasta files.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			fa_dir = argv[i];
+			if (!validFile(fa_dir.c_str())) {
+				fprintf(stderr, "Failed to find input directory %s.\n", fa_dir.c_str());
+				exit(EXIT_FAILURE);
 			}
 			continue;
 		}
 		fprintf(stderr, "Failed to recognize option: %s. \n", val.c_str());
 		exit(EXIT_FAILURE);
 	}
-
+	
+	if (K == -1) {
+		fprintf(stderr, "Warning: missing parameter k, set to default k = 26.\n");
+		K = 26;
+	}
+	if (L == -1) {
+		fprintf(stderr, "Warning: missing parameter L, set to default L = 100.\n");
+		L = 100;
+	}
+	if (Lmax == -1) {
+		fprintf(stderr, "Warning: missing parameter Lmax, set to default Lmax = 50.\n");
+		Lmax = 50;
+	}
 	if (h == -1 && h1 == -1 && h2 == -1) {
-		fprintf(stderr, "Please specify a valid hash length.\n");
-		exit(EXIT_FAILURE);
+		fprintf(stderr, "Warning: missing parameter h, set to default h = 26.\n");
+		h = 26;
+		h1 = 26;
+		h2 = 26;
 	}
 	
 	switch (mode) {
@@ -244,9 +365,9 @@ int main(int argc, char** argv) {
 			if (!fa_names.empty()) {
 				if (fa_dir.length() > 0)
 					fprintf(stderr, "Ignoring the input directory.\n");
-				main_fr = new FastaReader(L, K, t, fa_names);
+				main_fr = new FastaReader(L, Lmax, K, t, fa_names);
 			} else
-				main_fr = new FastaReader(L, K, t);
+				main_fr = new FastaReader(L, Lmax, K, t);
 
 			main_fr->readFnMap(fa_dir, fm_name);
 			main_fr->readAllFasta();
