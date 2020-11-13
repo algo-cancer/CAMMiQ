@@ -35,7 +35,7 @@ You'll need to run ```./cammiq --build [options] [parameters]``` from command li
   * ```--both``` CAMMiQ will build its complete indices consisting of all above files.
 
 On the other hand, ```[parameters]``` include the following list of (possibly mandatory) parameters.
-* ```-f <MAP_FILE>``` **Mandatory**. ```<MAP_FILE>``` gives a list of reference genomes, e.g., all/selected complete genomes in RefSeq for the bacterial, archaeal, and viral domains (downloaded with ```CAMMiQ-download```), which constitute CAMMiQ's database, possibly alongwith NCBI's taxonomic information. The input lines in ```<MAP_FILE>``` should contain at least 4 tab-delimited fields; from left to right, they are: 
+* ```-f <MAP_FILE>``` **Mandatory**. ```<MAP_FILE>``` gives a list of reference genomes in fasta format, e.g., all/selected complete genomes in RefSeq for the bacterial, archaeal, and viral domains (downloaded with ```CAMMiQ-download```), which constitute CAMMiQ's database, possibly alongwith NCBI's taxonomic information. The input lines in ```<MAP_FILE>``` should contain at least 4 tab-delimited fields; from left to right, they are: 
   * File names
   * Genome IDs (encoded in the index files)
   * NCBI taxonomic IDs
@@ -51,7 +51,7 @@ On the other hand, ```[parameters]``` include the following list of (possibly ma
   ......
   ```
   
-  (As a shortcut, ```-f``` can alternatively take a list of fasta files to build an index on these files. However, to query the index you will again need to organize the information of these fasta files in a ```<MAP_FILE>``` and use it as the input in the ```--query``` mode.
+  (As a shortcut, ```-f``` can alternatively take a list of fasta files to build an index on these files. However, to query the index you will again need to organize the information of these fasta files in a ```<MAP_FILE>``` and use it as the input in the ```--query``` mode.)
 * ```-d <FASTA_DIR>``` **Mandatory**. ```<FASTA_DIR>``` should contain the list of (fasta) file names given in ```<MAP_FILE>```.
 * ```-k <int>``` **Optional**. The minimum length of a unique or doubly-unique substring to be considered in CAMMiQ index. Default value is ```k = 26```.
 * ```-L <int>``` **Optional (but strongly recommended)**. Potential read length in a query supported by CAMMiQ index. Default value is ```L = 100```, which fits best for reads with length ```100```; if, for instance, the reads in your query have length ```75```, then you are expected to build an index by specifying ```L = 75```. 
