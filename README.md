@@ -29,7 +29,12 @@ CAMMiQ index is composed of three parts - all of them are necessary to query the
 * (iii) Other meta-information of the input genomes, including ```genome_lengths.out```, a text file containing the genome lengths; ```unique_lmer_count_u.out```, a text file containing the number of unique *L*-mers on each genome; and ```unique_lmer_count_d.out```, a text file containing the number of doubly unique *L*-mers on each genome.
 
 #### How do I construct the index?
-You'll need to run ```./cammiq --build [options]``` from command line, where ```[options]``` specifies the following list of (possibly mandatory) parameters.
+You'll need to run ```./cammiq --build [options] [parameters]``` from command line, where ```[options]``` include 
+  * ```--unique``` CAMMiQ will build the set of *unique substrings* from each input genome, consisting of ```index_u.bin1```, ```genome_lengths.out``` and ```unique_lmer_count_u.out```. Note that ```--unique``` is the **default** option if nothing is specified in the command line instructions.
+  * ```--doubly_unique``` CAMMiQ will build the set of *doubly unique substrings* from each input genome, consisting of ```index_d.bin2```, ```genome_lengths.out``` and ```unique_lmer_count_d.out```.
+  * ```--both``` CAMMiQ will build its complete indices consisting of all above files.
+
+On the other hand, ```[parameters]``` include the following list of (possibly mandatory) parameters.
 * ```-f <MAP_FILE>``` **Mandatory**. ```<MAP_FILE>``` gives a list of reference genomes, e.g., all/selected complete genomes in RefSeq for the bacterial, archaeal, and viral domains (downloaded with ```CAMMiQ-download```), which constitute CAMMiQ's database, possibly alongwith NCBI's taxonomic information. The input lines in ```<MAP_FILE>``` should contain at least 4 tab-delimited fields; from left to right, they are: 
   * File names
   * Genome IDs (encoded in the index files)
@@ -45,6 +50,8 @@ You'll need to run ```./cammiq --build [options]``` from command line, where ```
   GCF_000012885.1_ASM1288v1_genomic.fna	5	19	Pelobacter carbinolicus DSM 2380
   ......
   ```
+  
+  (As a shortcut, ```-f``` can alternatively take a list of fasta files to build an index on these files. However, to query the index you will again need to organize the information of these fasta files in a ```<MAP_FILE>``` and use it as the input in the ```--query``` mode.
 * ```-d <FASTA_DIR>``` **Mandatory**. ```<FASTA_DIR>``` should contain the list of (fasta) file names given in ```<MAP_FILE>```.
 * ```-k <int>``` **Optional**. The minimum length of a unique or doubly-unique substring to be considered in CAMMiQ index. Default value is ```k = 26```.
 * ```-L <int>``` **Optional (but strongly recommended)**. Potential read length in a query supported by CAMMiQ index. Default value is ```L = 100```, which fits best for reads with length ```100```; if, for instance, the reads in your query have length ```75```, then you are expected to build an index by specifying ```L = 75```. 
@@ -52,10 +59,6 @@ You'll need to run ```./cammiq --build [options]``` from command line, where ```
 * ```-h <int>|<int1 int2>``` **Optional**. Length of the common prefixes of the unique or doubly-unique substrings to be hashed. Default value is ```h = 26```.
   * Note a: The value of ```h``` is required to be *less than or equal to* ```k```. 
   * Note b: ```-h``` option can take in one or two integer values. With one input value ```h0```, CAMMiQ will set both hash lengths (for the collection of unique substrings and for the collection of doubly-unique substrings) ```h0```; with two input values ```h1``` and ```h2```, CAMMiQ will set the hash length for unique substrings ```h1``` and the hash length for doubly-unique substrings ```h2```.
-* ```-i unique|doubly_unique|both``` **Mandatory**. Indexing options.
-  * ```unique``` CAMMiQ will build the set of *unique substrings* from each input genome, consisting of ```index_u.bin1```, ```genome_lengths.out``` and ```unique_lmer_count_u.out```.
-  * ```doubly_unique``` CAMMiQ will build the set of *doubly unique substrings* from each input genome, consisting of ```index_d.bin2```, ```genome_lengths.out``` and ```unique_lmer_count_d.out```.
-  * ```both``` CAMMiQ will build its complete indices consisting of all above files.
 * ```-t <int>``` **Optional**. Number of threads used during CAMMiQ's index construction. Note that CAMMiQ uses OpenMP during its index construction, which, by default, is 'auto-threaded' (i.e. attempts to use all available CPUs on a computer).
 
 #### How do I query the collection of (metagenomic) reads?
