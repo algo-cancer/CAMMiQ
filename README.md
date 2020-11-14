@@ -17,7 +17,7 @@ To install CAMMiQ, just clone our repository and run the script install_CAMMiQ.s
 git clone https://github.com/algo-cancer/CAMMiQ
 ./install_CAMMiQ.sh --cplex-dir <CPLEX_DIR>
 ```
-where ```<CPLEX_DIR>``` should be replaced with the directory of your CPLEX_Studio.
+where ```<CPLEX_DIR>``` should be replaced with the directory of your **CPLEX_Studio**.
 
 ### How do I use CAMMiQ?
 To begin using CAMMiQ, you will first need to index the input genomes. 
@@ -52,32 +52,49 @@ On the other hand, ```[parameters]``` include the following list of (possibly ma
   ```
   
   (As a shortcut, ```-f``` can alternatively take a list of fasta files to build an index on these files. However, to query the index you will again need to organize the information of these fasta files in a ```<MAP_FILE>``` and use it as the input in the ```--query``` mode.)
-* ```-d <FASTA_DIR>``` **Mandatory**. ```<FASTA_DIR>``` should contain the list of (fasta) file names given in ```<MAP_FILE>```.
+  *Note.* It is in fact **recommended** that genome IDs grow from 1 to the number of genomes to be indexed. This feature was designed to minimize the memory usage when constructing CAMMiQ's index. See ["What is the expected computational cost of CAMMiQ?"] for more details.
+  *A final note about ```<MAP_FILE>```.*: In general, genome IDs in two different lines are expected to be different. However, sometimes genome IDs in two distinct lines *can be the same*; in other words, two fasta files can have *the same* genome ID, which means that CAMMiQ will treat them as contigs from the same genome. This functionality turns out to be useful **in some special cases**, e.g., in the ```--read_cnts``` style query, you may want to count the number of reads originated from each genus, yet the corresponding information of each fasta file is given at species/strain level - in this case you may want to use the same genome ID for the genomes belonging to the same species/strain to build the index. You need to be extremely careful about the query scenario just to avoid any **misuse** of CAMMiQ. 
+* ```-D <FASTA_DIR>``` **Mandatory**. ```<FASTA_DIR>``` should contain the list of (fasta) file names given in ```<MAP_FILE>```.
 * ```-k <int>``` **Optional**. The minimum length of a unique or doubly-unique substring to be considered in CAMMiQ index. Default value is ```k = 26```.
 * ```-L <int>``` **Optional (but strongly recommended)**. Potential read length in a query supported by CAMMiQ index. Default value is ```L = 100```, which fits best for reads with length ```100```; if, for instance, the reads in your query have length ```75```, then you are expected to build an index by specifying ```L = 75```. 
 * ```-Lmax <int>``` **Optional (but recommended)**. The maximum length of a unique or doubly-unique substring to be considered in CAMMiQ index. Default value is ```Lmax = 50``` or ```Lmax = 0.5 * L```.
-* ```-h <int>|<int1 int2>``` **Optional**. Length of the common prefixes of the unique or doubly-unique substrings to be hashed. Default value is ```h = 26```.
+* ```-h <int>|<int1 int2>``` **Optional**. Length of the common prefixes of the unique or doubly-unique substrings to be hashed. Default value is ```h = k``` or ```h = 26```.
   * Note a: The value of ```h``` is required to be *less than or equal to* ```k```. 
-  * Note b: ```-h``` option can take in one or two integer values. With one input value ```h0```, CAMMiQ will set both hash lengths (for the collection of unique substrings and for the collection of doubly-unique substrings) ```h0```; with two input values ```h1``` and ```h2```, CAMMiQ will set the hash length for unique substrings ```h1``` and the hash length for doubly-unique substrings ```h2```.
+  * Note b: ```-h``` parameter can take in one or two integer values. With one input value ```h0```, CAMMiQ will set both hash lengths (for the collection of unique substrings and for the collection of doubly-unique substrings) ```h0```; with two input values ```h1``` and ```h2```, CAMMiQ will set the hash length for unique substrings ```h1``` and the hash length for doubly-unique substrings ```h2```.
 * ```-t <int>``` **Optional**. Number of threads used during CAMMiQ's index construction. Note that CAMMiQ uses OpenMP during its index construction, which, by default, is 'auto-threaded' (i.e. attempts to use all available CPUs on a computer).
 
+Example usage:
+```
+./cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -f genome_map1.txt -D /data/fasta_dir/ -t 32 
+/* h should not exceed k */
+./cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -h 25 -f genome_map2.out -D /data/fasta_dir/ -t 64
+./cammiq --build --both -k 21 -L 75 -Lmax 75 -h 21 -f bacteria1.fa bacteria2.fa bacteria3.fa
+```
+
 #### How do I query the collection of (metagenomic) reads?
-You'll need to run ```./cammiq --query [options]``` from command line, where ```[options]``` specifies the following list of (possibly mandatory) parameters.
-* ```-f <MAP_FILE>``` **Mandatory**.
-* ```-q (-Q) <QUERY_FILE>``` **Mandatory**.
-* ```-I <INDEX_DIR>``` **Mandatory**.
-* ```-o <OUTPUT_FILE>``` **Optional (but strongly recommended)**.
-Here is an example of ```<OUTPUT_FILE>```
-```
-TAXID	ABUNDANCE	NAME
-1795	0.052824	Mycolicibacterium neoaurum VKM Ac-1815D
-2105	0.045993	Mycoplasma leachii PG50
-547143	0.051095	Hydrogenobaculum sp. 3684
-547145	0.048998	Hydrogenobaculum sp. SHO
-547146	0.042636	Hydrogenobaculum sp. SN
-1476577	0.044080	Candidatus Saccharibacteria oral taxon TM7x
-......
-```
+Similarly, you'll need to run ```./cammiq --query [options] [parameters]``` from command line, where ```[options]``` include
+  * ```--read_cnts``` **Optional**. If ```--read_cnts``` is specified, then CAMMiQ will not produce its standard output (see below ```-o``` option). Instead, CAMMiQ outputs a non-negative matrix where each row corresponds to a query (fastq file); each column corresponds to an **NCBI taxonomic ID** (attention: not a genome ID!); each entry gives the number of reads in a given query that CAMMiQ assigned uniquely to the corresponding taxon.
+  * ```-doubly_unique``` **Optional**. Only valid when ```--read_cnts``` is specified. CAMMiQ will resolve the ambiguous read counts brought by doubly-unique substrings, and assign each of those reads that only contain doubly-unique substrings from two distinct taxa to one specific taxon. 
+
+and ```[parameters]``` include the following list of (possibly mandatory) parameters.
+* ```-f <MAP_FILE>``` **Mandatory**. You should use the same ```<MAP_FILE>``` when building the index for querying. 
+* ```-q (-Q) <QUERY_FILE(S)>``` **Mandatory**. ```<QUERY_FILE(S)>``` can be either a list of fastq files, or a directory containing the list of fastq files in your query. A capitalized ```-Q``` indicate the input is a directory, that is,  
+  * ```-q``` CAMMiQ takes the list of fastq files.
+  * ```-Q``` CAMMiQ takes a directory which contains the list of fastq files.
+* ```-i <INDEX_FILES>``` **Mandatory**. ```<INDEX_FILES>``` 
+* ```-o <OUTPUT_FILE>``` **Optional (but strongly recommended)**. CAMMiQ's standard output file, with ```<OUTPUT_FILE>``` specifying the file name. You may want a different
+  Here is an example format of ```<OUTPUT_FILE>```
+  ```
+  #sample.fastq
+  TAXID	ABUNDANCE	NAME
+  1795	0.052824	Mycolicibacterium neoaurum VKM Ac-1815D
+  2105	0.045993	Mycoplasma leachii PG50
+  547143	0.051095	Hydrogenobaculum sp. 3684
+  547145	0.048998	Hydrogenobaculum sp. SHO
+  547146	0.042636	Hydrogenobaculum sp. SN
+  1476577	0.044080	Candidatus Saccharibacteria oral taxon TM7x
+  ......
+  ```
 
 * ```-e <int>``` **Optional (but strongly recommended)**.
 * ```-h <int>|<int1 int2>``` **Optional (but need special attention)**. 
