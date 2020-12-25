@@ -93,6 +93,8 @@ class FastaReader {
 		/* Compute minimum unique substrings. */
 		void* computeIndexmin();
 		void* computeIndexmin_d();
+		/* Same as computeIndexmin_d(); 
+		   The only exception is using 16-bits GSA2_. */
 		void* computeIndexmin_d_();
 		static void *computeIndex_t(void *obj) {
 			switch (mode_) {

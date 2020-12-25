@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			i++;
+			//i++;
 			idx_option = "unique";
 			continue;
 		}
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			i++;
+			//i++;
 			idx_option = "doubly_unique";
 			continue;
 		}
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			i++;
+			//i++;
 			idx_option = "both";
 			continue;
 		}
@@ -341,6 +341,7 @@ int main(int argc, char** argv) {
 		exit(EXIT_FAILURE);
 	}
 	
+	//NEED TO CHECK map file!
 	if (K == -1) {
 		fprintf(stderr, "Warning: missing parameter k, set to default k = 26.\n");
 		K = 26;

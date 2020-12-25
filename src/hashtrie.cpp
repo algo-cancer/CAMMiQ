@@ -329,6 +329,8 @@ void Hash::insert64_d(uint64_t bucket_, const uint8_t* key, uint32_t key_len_, u
 						abort();
 				*/
 				if (dleaf->compareRefID(refID_1, uc1, refID_2, uc2) == 0) {
+					fprintf(stderr, "%u\t%u\t%u\t%u\t", dleaf->refID.first, dleaf->ucount.first, dleaf->refID.second, dleaf->ucount.second);
+					fprintf(stderr, "%u\t%u\t%u\t%u\t", refID_1, uc1, refID_2, uc2);
 					fprintf(stderr, "Information not matching.\n");
 					abort();
 				}
@@ -1485,14 +1487,14 @@ void Hash::encodeIdx64(std::string &ofn, int debug) {
 	idx_writer->writeBits(7, 64);
 	idx_writer->writeBits(8, hash_len_);
 
-	int aaaaa = 0;
+	//int aaaaa = 0;
 	for (auto it : map64) {
-		if (aaaaa < 10)
-			fprintf(stderr, "%lu\n", it.first);
+		//if (aaaaa < 10)
+		//	fprintf(stderr, "%lu\n", it.first);
 		//idx_writer->writeBits64(0);
 		idx_writer->writeBits64(it.first);
 		encodeTrie(it.second);
-		aaaaa++;
+		//aaaaa++;
 	}
 	idx_writer->flush64();
 	idx_writer->closeFile();

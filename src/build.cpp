@@ -256,7 +256,7 @@ bool FastaReader::insertRC() {
 }
 
 void FastaReader::allocSuffixArray(int doubly_unique) {
-	uint64_t N = cur * block_size_ + pos;
+	uint64_t N = cur * block_size_ + pos;	
 	switch (doubly_unique) {
 		case 0:
 			/* Allocate the memory space of input string. */
@@ -447,7 +447,7 @@ void* FastaReader::computeIndexmin_d() {
 		j = i - mu_index[i];
 
 		// Reached a separation region between two contigs.
-		if (i >= contig_pos[ci] - 4) {
+		while (i >= contig_pos[ci] - 4) {
 			if ((start + L + 2 >= contig_pos[ci]) && exist_unique_[ci]) {
 				if (ri == lastr)
 					uLmcount[ri] -= (start + L + 3 - contig_pos[ci]);
@@ -545,7 +545,7 @@ void* FastaReader::computeIndexmin_d_() {
 		j = i - mu_index[i];
 
 		// Reached a separation region between two contigs.
-		if (i >= contig_pos[ci] - 4) {
+		while (i >= contig_pos[ci] - 4) {
 			if ((start + L + 2 >= contig_pos[ci]) && exist_unique_[ci]) {
 				if (ri == lastr)
 					uLmcount[ri] -= (start + L + 3 - contig_pos[ci]);
@@ -594,8 +594,9 @@ void* FastaReader::computeIndexmin_d_() {
 		if ((i > start_ + L) && (lastl > 0)) {
 			if (HASH_LEN_ < 16)
 				insert32_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
-			else
+			else {
 				insert64_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
+			}
 			start_ = lastj;
 		} 
 
@@ -657,17 +658,17 @@ void FastaReader::computeIndex(int mode) {
 	fprintf(stderr, "Time for organizing index: %lu ms.\n", duration);
 
 	if (mode == 1) {
-		std::string index_file = "index_u.bin1";
+		std::string index_file = "index_u_kir.bin1";
 		if (HASH_LEN_ < 16)
 			hasht->encodeIdx32(index_file, 0);
 		else
 			hasht->encodeIdx64(index_file, 0);
-		FILE *lcFile = fopen("./unique_lmer_count_u.out", "w");
+		FILE *lcFile = fopen("./unique_lmer_count_u_kir.out", "w");
 		fprintf(lcFile, "REFID\tCNT\n");
 		for (uint32_t i = 0; i < M_; i++)
 			fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
 		fclose (lcFile);
-		FILE *glFile = fopen("./genome_lengths.out", "w");
+		FILE *glFile = fopen("./genome_lengths_kir.out", "w");
 		fprintf(glFile, "REFID\tLENGTH\n");
 		uint32_t gl = 0, j = 0;
 		for (uint32_t i = 0; i < C_; i++) {
@@ -681,17 +682,17 @@ void FastaReader::computeIndex(int mode) {
 		fclose (glFile);
 	}
 	if (mode == 2) {
-		std::string index_file = "index_d.bin2";
+		std::string index_file = "index_d_kir.bin2";
 		if (HASH_LEN_ < 16)
 			hasht->encodeIdx32_d(index_file, 0);
 		else
 			hasht->encodeIdx64_d(index_file, 0);
-		FILE *lcFile = fopen("./unique_lmer_count_d.out", "w");
+		FILE *lcFile = fopen("./unique_lmer_count_d_kir.out", "w");
 		fprintf(lcFile, "REFID\tCNT\n");
 		for (uint32_t i = 0; i < M_; i++)
 			fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
 		fclose (lcFile);
-		FILE *glFile = fopen("./genome_lengths.out", "w");
+		FILE *glFile = fopen("./genome_lengths_kir.out", "w");
 		fprintf(glFile, "REFID\tLENGTH\n");
 		uint32_t gl = 0, j = 0;
 		for (uint32_t i = 0; i < C_; i++) {
@@ -705,12 +706,12 @@ void FastaReader::computeIndex(int mode) {
 		fclose (glFile);
 	}
 	if (mode == 3) {
-		std::string index_file = "index_d.bin2";
+		std::string index_file = "index_d_kir.bin2";
 		if (HASH_LEN_ < 16)
 			hasht->encodeIdx32_d(index_file, 0);
 		else
 			hasht->encodeIdx64_d(index_file, 0);
-		FILE *pFile = fopen("./unique_lmer_count_d.out", "w");
+		FILE *pFile = fopen("./unique_lmer_count_d_kir.out", "w");
 		fprintf(pFile, "REFID\tCNT\n");
 		for (uint32_t i = 0; i < M_; i++)
 			fprintf(pFile, "%u\t%u\n", refID[i], uLmcount[i]);
