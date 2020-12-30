@@ -84,11 +84,14 @@ FqReader::FqReader(int ho, uint32_t hl, std::string &idx_fn_u,
 	erate_ = erate;
 }
 
-void FqReader::resetReads() { 
+void FqReader::clearReads() {
  	if (!reads.empty()) {
-		for (auto read : reads)
-			if (read != NULL)
-				delete []read;
+		for (size_t i = 0; i < reads.size(); i++) {
+			for (auto read : reads[i])
+				if (read != NULL)
+					delete []read;
+			reads[i].clear();
+		}
 	}
 	reads.clear();
 }
@@ -109,7 +112,7 @@ void FqReader::loadIdx_p() {
 	for (int i = 0; i < 2; i++)
 		pthread_join(threads[i], NULL);
 		
-	fprintf(stderr, "Loaded index file.\n");
+	fprintf(stderr, "Loaded index files into memory.\n");
 
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 					(std::chrono::high_resolution_clock::now() - start).count();
@@ -196,16 +199,48 @@ void FqReader::getFqList(std::string &INDIR) {
 	}
 }
 
+void FqReader::queryFastq_p(std::string &INDIR) {
+	getFqList(INDIR);		
+	prepallFastq();
+	readallFastq();
+	loadGenomeLength();
+	if (qfilenames.size() == 1) {
+		query64_p(100, 0);
+		runILP_p(0, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+	} else {
+		for (size_t fq_idx = 0; fq_idx < qfilenames.size(); fq_idx++) {
+			query64_p(100, fq_idx);
+			runILP_p(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			resetCounters();
+		}
+	}
+}
+
 void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_) {		
-	for (auto fq_file : qfilenames_) {
+	/*for (auto fq_file : qfilenames_) {
 		readFastq(fq_file);
 		query64_p(100);
 		loadGenomeLength();
 		runILP_p(100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+	}*/
+	if (!qfilenames.empty()) {
+		qfilenames.clear();
+		fprintf(stderr, "Flushed existing file names.\n");
+	}
+	qfilenames = qfilenames_;
+	prepallFastq();
+	readallFastq();
+	loadGenomeLength();
+	for (size_t fq_idx = 0; fq_idx < qfilenames_.size(); fq_idx++) {
+		getFqnameWithoutDir(fq_idx);
+		query64_p(100, fq_idx);
+		runILP_p(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+		if (fq_idx < qfilenames_.size() - 1)
+			resetCounters();
 	}
 }
 
-void FqReader::readFastq(std::string &INFILE) { 
+void FqReader::readFastq(std::string &INFILE, size_t file_idx) { 
  	std::string bases, sp;
 	std::ifstream inputFile;
 	size_t rl;
@@ -217,13 +252,34 @@ void FqReader::readFastq(std::string &INFILE) {
 		rl = bases.length();
 		uint8_t *read = new uint8_t[rl];
 		strncpy((char*)read, bases.c_str(), rl);
-		reads.push_back(read);
+		//reads.push_back(read);
+		reads[file_idx].push_back(read);
+		//rlengths[file_idx].push_back((uint8_t) rl);
 		std::getline(inputFile, bases);
 		std::getline(inputFile, bases);
 	}
 	
 	inputFile.close();
-	fprintf(stderr, "%lu\n", reads.size());
+	//fprintf(stderr, "%lu\n", reads.size());
+}
+
+void FqReader::prepallFastq() {
+	for (size_t i = 0; i < qfilenames.size(); i++) {
+		//nundet.push_back(0);
+		//nconf.push_back(0);
+		//genomes->read_cnts_u.push_back(0);
+		//genomes->read_cnts_d.push_back(0);
+		std::vector<uint8_t*> reads_i;
+		reads.push_back(reads_i);
+	}
+	fprintf(stderr, "Prepared reads from queries.\n");
+}
+
+void FqReader::readallFastq() {
+	for (size_t i = 0; i < qfilenames.size(); i++) {
+		//fprintf(stderr, "%s\n", qfilenames[i].c_str());
+		readFastq(qfilenames[i], i);
+	}
 }
 
 void FqReader::getRC(uint8_t *dest, uint8_t *srcs, size_t length) {
@@ -231,7 +287,13 @@ void FqReader::getRC(uint8_t *dest, uint8_t *srcs, size_t length) {
 		dest[i] = rcIdx[srcs[length - i - 1]];
 }
 
-void FqReader::query64_p(size_t rl) {
+void FqReader::getFqnameWithoutDir(size_t file_idx) {
+	std::stringstream fn_stream(qfilenames[file_idx]);
+	while(fn_stream.good())
+		getline(fn_stream, current_filename, '/');
+}
+
+void FqReader::query64_p(size_t rl, size_t file_idx) {
 	auto start = std::chrono::high_resolution_clock::now();
 	uint64_t hv = 0;
 	uint32_t hs = 0;
@@ -243,7 +305,8 @@ void FqReader::query64_p(size_t rl) {
 	uint8_t *rc_read = new uint8_t[max_rl];
 	size_t nrd = 0;
 
-	for (auto read : reads) {
+	fprintf(stderr, "Querying %s.\n", current_filename.c_str());
+	for (auto read : reads[file_idx]) {
 		rids.clear();
 		rid_pairs.clear();
 		pnodes.clear();
@@ -311,18 +374,14 @@ void FqReader::query64_p(size_t rl) {
 			}
 		}
 
-		//fprintf(stderr, "Read %lu; %lu\n", nrd, genomes.size());
 		switch (rid_pairs.size()) {
 			case 0:
 				if (rids.empty())
 					nundet++;
 				else {
 					if (rids.size() == 1) {
-						for (auto rid : rids) {
+						for (auto rid : rids)
 							genomes[rid]->read_cnts_u++;
-							//if (rid != true_labels[nrd])
-							//	misclass++;
-						}
 						for (auto pn : pnodes)
 							pn->rcount += 1;
 					} else
@@ -334,10 +393,6 @@ void FqReader::query64_p(size_t rl) {
 					for (auto rid_pair : rid_pairs) {
 						genomes[rid_pair.first]->read_cnts_d++;
 						genomes[rid_pair.second]->read_cnts_d++;
-						//if (rid_pair.first != 658661 && rid_pair.second != 658661)
-						//	nerror++;
-						//if (rid_pair.first != true_labels[nrd] && rid_pair.second != true_labels[nrd])
-						//	misclass++;
 					}
 					for (auto pn : pnodes)
 						pn->rcount += 1;
@@ -354,8 +409,6 @@ void FqReader::query64_p(size_t rl) {
 									genomes[rid]->read_cnts_d++;
 									for (auto pn : pnodes)
 										pn->rcount += 1;
-									//if (rid != true_labels[nrd])
-									//	misclass++;
 								}
 					}
 				}
@@ -380,8 +433,6 @@ void FqReader::query64_p(size_t rl) {
 							genomes[rid]->read_cnts_d++;
 							for (auto pn : pnodes)
 								pn->rcount += 1;
-							//if (rid != true_labels[nrd])
-							//	misclass++;
 						}
 					}
 				} else {
@@ -406,11 +457,8 @@ void FqReader::query64_p(size_t rl) {
 							nconf++;
 							break;
 						case 1:
-							for (auto rid : intersection) {
+							for (auto rid : intersection)
 								genomes[rid]->read_cnts_d++;
-								//if (rid != true_labels[nrd])
-								//	misclass++;
-							}
 							for (auto pn : pnodes)
 								pn->rcount += 1;
 							break;
@@ -421,25 +469,19 @@ void FqReader::query64_p(size_t rl) {
 				}
 				break;
 		}
-		if (nrd++ % 100000 == 0) {
-			//fprintf(stderr, "%u\t%lu\t%lu\n", genomes[3]->taxID, genomes[3]->read_cnts_u, genomes[3]->read_cnts_d);
-			fprintf(stderr, "\rProcessed %lu reads.\n", nrd);
-		}
+		if (nrd++ % 100000 == 0)
+			fprintf(stderr, "Processed %lu reads.\r", nrd);
 	}
 
-	fprintf(stderr, "Number of unlabeled reads: %lu.\n", nundet);
+	fprintf(stderr, "\nNumber of unlabeled reads: %lu.\n", nundet);
 	fprintf(stderr, "Number of reads with conflict labels: %lu.\n", nconf);
-	//delete []rc_read;
-	//for (size_t i = 0; i < 4122; i++)
-	//	fprintf(stderr, "%lu, %u\t%lu\t%lu\n", i, genomes[i + 1]->taxID, genomes[i + 1]->read_cnts_u, genomes[i + 1]->read_cnts_d);
-
-	fprintf(stderr, "Completed query.\n");
+	fprintf(stderr, "Completed query %s.\n", current_filename.c_str());
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 			(std::chrono::high_resolution_clock::now() - start).count();
 	fprintf(stderr, "Time for query: %lu ms.\n", duration);
 }
 
-void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres, 
+void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t unique_thres, 
 			double erate, double max_cov, double resolution, double epsilon) {
 	auto start = std::chrono::high_resolution_clock::now();
 	
@@ -450,7 +492,7 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 	
 	// Binary variable EXIST[l]: Existence of species l.
 	size_t n_species = genomes.size() - 1;
-	fprintf(stderr, "%lu\n", n_species);
+	//fprintf(stderr, "%lu\n", n_species);
 	exist = new int[n_species];
 	memset(exist, 1, sizeof(int) * n_species);
 	IloBoolVarArray EXIST(env, n_species);
@@ -497,18 +539,19 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 	for (size_t i = 0; i < n_species; i++) {
 		if (exist[i]) {
 			n_species_exist++;
-			fprintf(stderr, "Species %u may exist. \n", genomes[i + 1]->taxID);
+			//fprintf(stderr, "Genome with taxonomy id %u may exist.\r", genomes[i + 1]->taxID);
 		}
 	}
-	fprintf(stderr, "\tConstructed constraint 0.\n");
+	fprintf(stderr, "%lu genomes may exist in query %s.\n", n_species_exist, current_filename.c_str());
+	//fprintf(stderr, "\n\tConstructed constraint 0.\n");
 	//for (auto rc : read_cnts_u)
 	//	if (exist[species_order[rc.first]])
 	//		fprintf(stderr, "%u\t%lu\t%lu\n", rc.first, rc.second, read_cnts_d[rc.first]);
-	for (size_t i = 0; i < n_species; i++) {
+	/*for (size_t i = 0; i < n_species; i++) {
 		if (exist[i]) {
 			fprintf(stderr, "%lu\t%u\t%lu\t%lu\n\n", i, genomes[i + 1]->taxID, genomes[i + 1]->read_cnts_u, genomes[i + 1]->read_cnts_d);
 		}
-	}
+	}*/
 
 	size_t num_us_valid = 0, abs_index = 0;
 	for (size_t i = 0; i < n_species; i++) {
@@ -519,13 +562,13 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 			num_us_valid += ht_d->map_sp[i + 1].size();
 		}
 	}
-	fprintf(stderr, "Filtered out invalid species by read counts.\n");
+	fprintf(stderr, "Filtered out invalid genomes by read counts.\n");
 
 	// Continuous variable C[l]: Coverage of species l.
 	IloNumVarArray COV(env, n_species, 0.0, max_cov, ILOFLOAT);
-	fprintf(stderr, "\tConstructed all other variables.\n");
+	//fprintf(stderr, "\tConstructed all other variables.\n");
 
-	fprintf(stderr, "\tConstructed the objective function.\n");
+	fprintf(stderr, "Constructed the objective function.\n");
 	// Minimize the total number of species. 
 	for (size_t i = 0; i < n_species; i++) {
 		double u_factor = 1000.0 / ht_u->map_sp[i + 1].size();
@@ -556,7 +599,7 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 		}
 	}
 	model.add(IloMinimize(env, objective));
-	fprintf(stderr, "\tConstructed constraint 1-2.\n");
+	//fprintf(stderr, "\tConstructed constraint 1-2.\n");
 
 	// Constraint 3: COV should match EXIST
 	for (size_t i = 0; i < n_species; i++) {
@@ -606,7 +649,7 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 			exp_i++;
 		}
 	}
-	fprintf(stderr, "\tConstructed constraint 3.\n");
+	//fprintf(stderr, "\tConstructed constraint 3.\n");
 
 	// Constraint 4: refining the search space
 	//fprintf(stderr, "EXPR\n");
@@ -618,8 +661,8 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 		TOTAL += (COV[i] * (1.0 * genomes[i + 1]->glength) / rl);
 	}
 	//model.add(TOTAL >= 0.9 * reads.size());
-	model.add(TOTAL <= (1.0 + epsilon) * reads.size());
-	fprintf(stderr, "\tConstructed constraint 4.\n");
+	model.add(TOTAL <= (1.0 + epsilon) * reads[file_idx].size());
+	fprintf(stderr, "Constructed ILP constraints for genome quantification.\n");
 
 	IloExpr e1(env);
 	for (size_t i = 0; i < n_species; i++) {
@@ -628,7 +671,11 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 	//model.add(e1 <= 2);
 	//fprintf(stderr, "\tConstructed constraint 6.\n");
 	model.add(e1 <= n_species_exist * 1.0);
-	FILE * fout = fopen(OUTPUTFILE.c_str(), "w");
+	FILE *fout;
+	if (file_idx == 0)
+		fout = fopen(OUTPUTFILE.c_str(), "w");
+	else
+		fout = fopen(OUTPUTFILE.c_str(), "a");
 
 	// Solving the ILP.
 	try {	
@@ -636,12 +683,16 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 		//cplex.setParam(IloCplex::IntParam::Threads, 32);
 		cplex.setParam(IloCplex::NumParam::TiLim, 10800);
 		cplex.setParam(IloCplex::NumParam::SolnPoolAGap, 0.0);
+		cplex.setOut(env.getNullStream());
+		//cplex.setParam(IloCplex::Param::Tune::Display, 0);
 
+		//if (cplex.populate()) {
 		if (cplex.solve()) {
 			//int nsolns = cplex.getSolnPoolNsolns();
 			//for (int s = 0; s < nsolns; s++) {
 				//fprintf(fout, "\nk = %d; Objective = %.4f.\n", k, cplex.getObjValue(s));
 				//fprintf(fout, "\nSolution %d:\n", s);
+				fprintf(fout, "Query %s:\n", current_filename.c_str());
 				fprintf(fout, "TAXID\tABUNDANCE\tNAME\n");
 				double total_cov = 0.0;
 				std::vector<size_t> cplex_solution;
@@ -659,7 +710,11 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 				for (auto si : cplex_solution)
 					fprintf(fout, "%u\t%.6f\t%s\n", genomes[si + 1]->taxID,
 						cplex.getValue(COV[si]) / total_cov, genomes[si + 1]->name.c_str());
+					//fprintf(fout, "%u\t%.6f\t%s\n", genomes[si + 1]->taxID,
+					//	cplex.getValue(COV[si], s) / total_cov, genomes[si + 1]->name.c_str());
 			//}
+			if (file_idx < qfilenames.size() - 1)
+				fprintf(fout, "\n");
 		}
 
 		fclose(fout);
@@ -670,7 +725,29 @@ void FqReader::runILP_p(int rl, int read_cnt_thres, uint32_t unique_thres,
 
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 			(std::chrono::high_resolution_clock::now() - start).count();
-	fprintf(stderr, "Time for ilp: %lu ms.\n", duration);
+	fprintf(stderr, "Time for quantification through CPLEX: %lu ms.\n", duration);
+}
+
+void FqReader::resetCounters() {
+	auto start = std::chrono::high_resolution_clock::now();
+	nconf = 0;
+	nundet = 0;
+
+	size_t n_species = genomes.size() - 1;
+	for (size_t i = 1; i <= n_species; i++) {
+ 		genomes[i]->read_cnts_u = 0;
+		genomes[i]->read_cnts_d = 0;
+	}
+	#pragma omp parallel for
+	for (size_t i = 1; i <= n_species; i++) {
+		for (auto pn : ht_u->map_sp[i])
+			pn->rcount = 0;
+		for (auto pn : ht_d->map_sp[i])
+			pn->rcount = 0;
+	}
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for resetting counters: %lu ms.\n", duration);
 }
 
 int FqReader::symbolIdx[256] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, \

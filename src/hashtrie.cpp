@@ -1049,7 +1049,7 @@ void Hash::loadIdx32_p(std::string &fn) {
 }
 
 void Hash::loadIdx64_p(std::string &fn) {
-	auto start = std::chrono::high_resolution_clock::now();
+	//auto start = std::chrono::high_resolution_clock::now();
 
 	idx_reader = new BitReader();
 	idx_reader->openFile(fn);
@@ -1061,8 +1061,8 @@ void Hash::loadIdx64_p(std::string &fn) {
 	hash_len_ = idx_reader->readBits(8);
 	uint64_t bucket = idx_reader->readBits64();
 	
-	fprintf(stderr, "N: %s\n", fn.c_str());
-	fprintf(stderr, "L: %d\n", hash_len_);
+	fprintf(stderr, "Index: %s\n", fn.c_str());
+	fprintf(stderr, "Hash Length: %d\n", hash_len_);
 	while (bucket != END64) {
 		/*1168575096146679
 		0
@@ -1090,12 +1090,12 @@ void Hash::loadIdx64_p(std::string &fn) {
 		bucket = idx_reader->readBits64();
 	}
 	idx_reader->closeFile();
-	fprintf(stderr, "Loaded index from file.\n");
+	//fprintf(stderr, "Loaded index from file.\n");
 	//fprintf(stderr, "Num buckets: %lu; %lu\n", count1, count2);
 	delete idx_reader;
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
-			(std::chrono::high_resolution_clock::now() - start).count();
-	fprintf(stderr, "Time for query: %lu ms.\n", duration);
+	//auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+	//		(std::chrono::high_resolution_clock::now() - start).count();
+	//fprintf(stderr, "Time for query: %lu ms.\n", duration);
 }
 
 void Hash::loadIdx64_test(std::string &fn) {

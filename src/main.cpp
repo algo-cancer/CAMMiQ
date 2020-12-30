@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <cstdlib>
+//#include <cassert>
 #include <omp.h>
 
 #include "util.hpp"
@@ -240,7 +241,7 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "The hash length should be in range [5, 31].\n"); 
 				exit(EXIT_FAILURE);
 			}
-			if ((h > K) || (h1 > K) || (h2 > K)) {
+			if ((mode == 0) && ((h > K) || (h1 > K) || (h2 > K))) {
 				fprintf(stderr, "The hash length should be less than or equal to k.\n"); 
 				exit(EXIT_FAILURE);
 			}
@@ -341,19 +342,6 @@ int main(int argc, char** argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	//NEED TO CHECK map file!
-	if (K == -1) {
-		fprintf(stderr, "Warning: missing parameter k, set to default k = 26.\n");
-		K = 26;
-	}
-	if (L == -1) {
-		fprintf(stderr, "Warning: missing parameter L, set to default L = 100.\n");
-		L = 100;
-	}
-	if (Lmax == -1) {
-		fprintf(stderr, "Warning: missing parameter Lmax, set to default Lmax = 50.\n");
-		Lmax = 50;
-	}
 	if (h == -1 && h1 == -1 && h2 == -1) {
 		fprintf(stderr, "Warning: missing parameter h, set to default h = 26.\n");
 		h = 26;
@@ -363,6 +351,19 @@ int main(int argc, char** argv) {
 	
 	switch (mode) {
 		case 0:
+			//NEED TO CHECK map file!
+			if (K == -1) {
+				fprintf(stderr, "Warning: missing parameter k, set to default k = 26.\n");
+				K = 26;
+			}
+			if (L == -1) {
+				fprintf(stderr, "Warning: missing parameter L, set to default L = 100.\n");
+				L = 100;
+			}
+			if (Lmax == -1) {
+				fprintf(stderr, "Warning: missing parameter Lmax, set to default Lmax = 50.\n");
+				Lmax = 50;
+			}
 			if (!fa_names.empty()) {
 				if (fa_dir.length() > 0)
 					fprintf(stderr, "Ignoring the input directory.\n");

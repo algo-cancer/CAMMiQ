@@ -26,10 +26,11 @@ class FqReader {
 	private:
 		/* Fastq file names. */
 		std::vector<std::string> qfilenames;
+		std::string current_filename;
 
 		/* Reads. */
 		size_t max_rl = 256;
-		std::vector<uint8_t*> reads;
+		std::vector<std::vector<uint8_t*>> reads;
 		
 		/* Number of "conflict" (having more than one refID) reads. */
 		size_t nconf = 0;
@@ -64,7 +65,8 @@ class FqReader {
 		FqReader(int, uint32_t, std::string&, std::string&, std::string&, std::string&, float);
 		~FqReader();
 
-		void resetReads();
+		//void resetReads();
+		void clearReads();
 
 		void loadIdx();
 		void loadIdx_p();
@@ -88,21 +90,29 @@ class FqReader {
 
 		void getFqList(std::string&);
 
-		void readFastq(std::string&);
+		void prepallFastq();
+
+		void readFastq(std::string&, size_t);
+
+		void getFqnameWithoutDir(size_t);
 
 		//void query32_s(size_t);
 		//void query64_s(size_t);
 		// void query32_p(size_t);
-		void query64_p(size_t);
+		void query64_p(size_t, size_t);
 
 		//void queryFastq(std::vector<std::string>&);
+		void queryFastq_p(std::string&);
 		void queryFastq_p(std::vector<std::string>&);
 
 		//void queryAllFastq();
+		void readallFastq();
 
 		void getRC(uint8_t*, uint8_t*, size_t);
 
-		void runILP_p(int, int, uint32_t, double, double, double, double);
+		void runILP_p(size_t, int, int, uint32_t, double, double, double, double);
+
+		void resetCounters();
 		
 		static int symbolIdx[256];
 
