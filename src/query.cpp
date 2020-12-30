@@ -276,10 +276,8 @@ void FqReader::prepallFastq() {
 }
 
 void FqReader::readallFastq() {
-	for (size_t i = 0; i < qfilenames.size(); i++) {
-		//fprintf(stderr, "%s\n", qfilenames[i].c_str());
+	for (size_t i = 0; i < qfilenames.size(); i++)
 		readFastq(qfilenames[i], i);
-	}
 }
 
 void FqReader::getRC(uint8_t *dest, uint8_t *srcs, size_t length) {
@@ -492,7 +490,6 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 	
 	// Binary variable EXIST[l]: Existence of species l.
 	size_t n_species = genomes.size() - 1;
-	//fprintf(stderr, "%lu\n", n_species);
 	exist = new int[n_species];
 	memset(exist, 1, sizeof(int) * n_species);
 	IloBoolVarArray EXIST(env, n_species);
@@ -504,7 +501,6 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 		double d1 = genomes[i]->read_cnts_u * 1.0, d2 = genomes[i]->read_cnts_u * 1.0;
 		d1 -= read_cnt_thres;
 		d2 -= (1.0 * genomes[i]->nus) * resolution;
-		//fprintf(stderr, "%u; %.4f; %.4f; %u; %u\n", rid, d1, d2, species_nus[rid], unique_thres);
 		if (genomes[i]->nus >= unique_thres) {
 			if (d1 < 0.0 || d2 < 0.0) {
 				exist[i - 1] = 0;
@@ -521,7 +517,6 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 		float d1 = genomes[i]->read_cnts_d * 1.0, d2 = genomes[i]->read_cnts_d * 1.0;
 		d1 -= read_cnt_thres;
 		d2 -= (1.0 * genomes[i]->nds) * resolution;
-		//fprintf(stderr, "%u; %.4f; %.4f\n", rid, d1, d2);
 		if (genomes[i]->nus >= unique_thres) { // we should try nds?
 			if (d1 < 0.0 || d2 < 0.0) {
 				exist[i - 1] = 0;
@@ -536,28 +531,14 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 	}
 
 	size_t n_species_exist = 0;
-	for (size_t i = 0; i < n_species; i++) {
-		if (exist[i]) {
+	for (size_t i = 0; i < n_species; i++)
+		if (exist[i]) 
 			n_species_exist++;
-			//fprintf(stderr, "Genome with taxonomy id %u may exist.\r", genomes[i + 1]->taxID);
-		}
-	}
 	fprintf(stderr, "%lu genomes may exist in query %s.\n", n_species_exist, current_filename.c_str());
-	//fprintf(stderr, "\n\tConstructed constraint 0.\n");
-	//for (auto rc : read_cnts_u)
-	//	if (exist[species_order[rc.first]])
-	//		fprintf(stderr, "%u\t%lu\t%lu\n", rc.first, rc.second, read_cnts_d[rc.first]);
-	/*for (size_t i = 0; i < n_species; i++) {
-		if (exist[i]) {
-			fprintf(stderr, "%lu\t%u\t%lu\t%lu\n\n", i, genomes[i + 1]->taxID, genomes[i + 1]->read_cnts_u, genomes[i + 1]->read_cnts_d);
-		}
-	}*/
 
 	size_t num_us_valid = 0, abs_index = 0;
 	for (size_t i = 0; i < n_species; i++) {
 		if (exist[i] > 0) {
-			//num_us_valid += ht_u->map_cnt[rid].first;
-			//num_us_valid += ht_u->map_cnt[rid].second;
 			num_us_valid += ht_u->map_sp[i + 1].size();
 			num_us_valid += ht_d->map_sp[i + 1].size();
 		}
@@ -566,9 +547,7 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 
 	// Continuous variable C[l]: Coverage of species l.
 	IloNumVarArray COV(env, n_species, 0.0, max_cov, ILOFLOAT);
-	//fprintf(stderr, "\tConstructed all other variables.\n");
 
-	fprintf(stderr, "Constructed the objective function.\n");
 	// Minimize the total number of species. 
 	for (size_t i = 0; i < n_species; i++) {
 		double u_factor = 1000.0 / ht_u->map_sp[i + 1].size();
@@ -599,7 +578,7 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 		}
 	}
 	model.add(IloMinimize(env, objective));
-	//fprintf(stderr, "\tConstructed constraint 1-2.\n");
+	fprintf(stderr, "Constructed the objective function.\n");
 
 	// Constraint 3: COV should match EXIST
 	for (size_t i = 0; i < n_species; i++) {
@@ -611,7 +590,6 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 	size_t exp_i = 0;
 	for (; exp_i < n_species_exist; exp_i++)
 		EXP1[exp_i] = IloExpr(env);
-	//fprintf(stderr, "n_species_exist: %lu\n", n_species_exist);
 	exp_i = 0;
 	for (size_t i = 0; i < n_species; i++) {
 		if (exist[i] > 0) {
@@ -649,28 +627,19 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 			exp_i++;
 		}
 	}
-	//fprintf(stderr, "\tConstructed constraint 3.\n");
 
 	// Constraint 4: refining the search space
-	//fprintf(stderr, "EXPR\n");
 	IloExpr TOTAL(env);
-	//fprintf(stderr, "EXPR\n");
-	//fprintf(stderr, "%lu\n", n_species);
-	for (size_t i = 0; i < n_species; i++) {
-		//fprintf(stderr, "%lu, %u\n", i, genomes[i]->glength);
+	for (size_t i = 0; i < n_species; i++)
 		TOTAL += (COV[i] * (1.0 * genomes[i + 1]->glength) / rl);
-	}
-	//model.add(TOTAL >= 0.9 * reads.size());
 	model.add(TOTAL <= (1.0 + epsilon) * reads[file_idx].size());
-	fprintf(stderr, "Constructed ILP constraints for genome quantification.\n");
 
 	IloExpr e1(env);
-	for (size_t i = 0; i < n_species; i++) {
+	for (size_t i = 0; i < n_species; i++)
 		e1 += EXIST[i];
-	}
-	//model.add(e1 <= 2);
-	//fprintf(stderr, "\tConstructed constraint 6.\n");
 	model.add(e1 <= n_species_exist * 1.0);
+	fprintf(stderr, "Constructed ILP constraints for genome quantification.\n");
+
 	FILE *fout;
 	if (file_idx == 0)
 		fout = fopen(OUTPUTFILE.c_str(), "w");
@@ -684,40 +653,29 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 		cplex.setParam(IloCplex::NumParam::TiLim, 10800);
 		cplex.setParam(IloCplex::NumParam::SolnPoolAGap, 0.0);
 		cplex.setOut(env.getNullStream());
-		//cplex.setParam(IloCplex::Param::Tune::Display, 0);
 
-		//if (cplex.populate()) {
 		if (cplex.solve()) {
-			//int nsolns = cplex.getSolnPoolNsolns();
-			//for (int s = 0; s < nsolns; s++) {
-				//fprintf(fout, "\nk = %d; Objective = %.4f.\n", k, cplex.getObjValue(s));
-				//fprintf(fout, "\nSolution %d:\n", s);
-				fprintf(fout, "Query %s:\n", current_filename.c_str());
-				fprintf(fout, "TAXID\tABUNDANCE\tNAME\n");
-				double total_cov = 0.0;
-				std::vector<size_t> cplex_solution;
-				for (size_t i = 0; i < n_species; i++) {
-					//bool ei = cplex.getValue(EXIST[i], s);
-					//float ci = cplex.getValue(COV[i], s);
-					bool ei = cplex.getValue(EXIST[i]);
-					double ci = cplex.getValue(COV[i]);
-					if (ei != 0) {
-						total_cov += ci;
-						cplex_solution.push_back(i);
-						//fprintf(fout, "%u\t%d\t%.4f\n", genomes[i + 1]->taxID, ei, ci);
-					}
+			fprintf(fout, "Query %s:\n", current_filename.c_str());
+			fprintf(fout, "TAXID\tABUNDANCE\tNAME\n");
+			double total_cov = 0.0;
+			std::vector<size_t> cplex_solution;
+			for (size_t i = 0; i < n_species; i++) {
+				bool ei = cplex.getValue(EXIST[i]);
+				double ci = cplex.getValue(COV[i]);
+				if (ei != 0) {
+					total_cov += ci;
+					cplex_solution.push_back(i);
 				}
-				for (auto si : cplex_solution)
-					fprintf(fout, "%u\t%.6f\t%s\n", genomes[si + 1]->taxID,
-						cplex.getValue(COV[si]) / total_cov, genomes[si + 1]->name.c_str());
-					//fprintf(fout, "%u\t%.6f\t%s\n", genomes[si + 1]->taxID,
-					//	cplex.getValue(COV[si], s) / total_cov, genomes[si + 1]->name.c_str());
-			//}
+			}
+			for (auto si : cplex_solution)
+				fprintf(fout, "%u\t%.6f\t%s\n", genomes[si + 1]->taxID,
+					cplex.getValue(COV[si]) / total_cov, genomes[si + 1]->name.c_str());
 			if (file_idx < qfilenames.size() - 1)
 				fprintf(fout, "\n");
 		}
 
 		fclose(fout);
+
 	} catch (IloException &ex) {}
 
 	if (exist != NULL)
