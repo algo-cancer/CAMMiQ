@@ -204,25 +204,16 @@ void FqReader::queryFastq_p(std::string &INDIR) {
 	prepallFastq();
 	readallFastq();
 	loadGenomeLength();
-	if (qfilenames.size() == 1) {
-		query64_p(100, 0);
-		runILP_p(0, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
-	} else {
-		for (size_t fq_idx = 0; fq_idx < qfilenames.size(); fq_idx++) {
-			query64_p(100, fq_idx);
-			runILP_p(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+	for (size_t fq_idx = 0; fq_idx < qfilenames.size(); fq_idx++) {
+		getFqnameWithoutDir(fq_idx);
+		query64_p(100, fq_idx);
+		runILP_p(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+		if (fq_idx < qfilenames.size() - 1)
 			resetCounters();
-		}
 	}
 }
 
 void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_) {		
-	/*for (auto fq_file : qfilenames_) {
-		readFastq(fq_file);
-		query64_p(100);
-		loadGenomeLength();
-		runILP_p(100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
-	}*/
 	if (!qfilenames.empty()) {
 		qfilenames.clear();
 		fprintf(stderr, "Flushed existing file names.\n");

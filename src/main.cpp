@@ -113,6 +113,15 @@ int main(int argc, char** argv) {
 			//idx_option = "both";
 			continue;
 		}
+		if (val == "--enable_ilp_display") {
+			if (mode <= 0) {
+				fprintf(stderr, "Option --enable_ilp_display is only valid in mode QUERY.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			//i++;
+			//idx_option = "both";
+			continue;
+		}
 		if (val == "-k") {
 			if (mode > 0) {
 				fprintf(stderr, "Parameter k is only valid in mode BUILD.\n"); 
@@ -422,10 +431,14 @@ int main(int argc, char** argv) {
 			main_fqr->loadSmap();
 			if (!fq_names.empty())
 				main_fqr->queryFastq_p(fq_names);
-			//else {
-				//main_fqr->getFqList(fq_dir);
-				//main_fqr->queryAllFastq();
-			//}
+			else {
+				if (fq_dir != "")
+					main_fqr->queryFastq_p(fq_dir);
+				else {
+					fprintf(stderr, "Please specify at least one query file or directory.\n");
+					exit(EXIT_FAILURE);
+				}
+			}
 			break;
 		default:
 			break;
