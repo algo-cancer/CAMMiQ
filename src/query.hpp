@@ -1,6 +1,7 @@
 #ifndef FQREADER_HPP_
 #define FQREADER_HPP_
 
+#include <cassert>
 #include <pthread.h>
 #include <vector>
 #include <unordered_set>
@@ -44,10 +45,8 @@ class FqReader {
 		int *exist = NULL;
 
 		/* Hash parameters. */
-		int doubly_unique = 0;
-		int hash_option = 32;
-		uint32_t hash_len_u = 12;
-		uint32_t hash_len_d = 12;
+		uint32_t hash_len_u = -1;
+		uint32_t hash_len_d = -1;
 		std::string IDXFILEU;
 		std::string IDXFILED;
 		Hash *ht_u = NULL;
@@ -55,27 +54,34 @@ class FqReader {
 		float erate_;
 		std::string OUTPUTFILE;
 
+		bool debug_display = 0;
+
 	public:
-		//int tid_ = 0;
-		//pthread_mutex_t thread_lock;
+		int nthreads = 1;
 		
-		FqReader(int, int, uint32_t, std::string&, std::string&);
-		FqReader(int, uint32_t, std::string&, uint32_t, std::string&, std::string&);
-		FqReader(int, uint32_t, std::string&, uint32_t, std::string&, std::string&, std::string&, float);
-		FqReader(int, uint32_t, std::string&, std::string&, std::string&, std::string&, float);
+		FqReader(std::string&, std::string&, std::string&, std::string&, float, bool);
+		FqReader(uint32_t, std::string&, std::string&, std::string&, std::string&, float, bool);
+		FqReader(uint32_t, std::string&, uint32_t, std::string&, std::string&, std::string&, float, bool);
 		~FqReader();
 
-		//void resetReads();
 		void clearReads();
 
 		void loadIdx();
 		void loadIdx_p();
 		void* loadIdx_u_() {
 			ht_u->loadIdx64_p(IDXFILEU);
+			if (hash_len_u > 0)
+				assert(ht_u->getHashLength() == hash_len_u);
+			else
+				hash_len_u = ht_u->getHashLength();
 			return 0;
 		}
 		void* loadIdx_d_() {
 			ht_d->loadIdx64_p(IDXFILED);
+			if (hash_len_d > 0)
+				assert(ht_d->getHashLength() == hash_len_d);
+			else
+				hash_len_d = ht_d->getHashLength();
 			return 0;
 		}
 		static void *loadIdx_u(void *obj) {
@@ -96,16 +102,12 @@ class FqReader {
 
 		void getFqnameWithoutDir(size_t);
 
-		//void query32_s(size_t);
-		//void query64_s(size_t);
-		// void query32_p(size_t);
 		void query64_p(size_t, size_t);
+		void query64mt_p(size_t, size_t);
 
-		//void queryFastq(std::vector<std::string>&);
 		void queryFastq_p(std::string&);
 		void queryFastq_p(std::vector<std::string>&);
 
-		//void queryAllFastq();
 		void readallFastq();
 
 		void getRC(uint8_t*, uint8_t*, size_t);

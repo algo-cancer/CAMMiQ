@@ -116,8 +116,8 @@ class FastaReader {
 		void computeIndex(int);
 		//void analIndex(int, int);
 		//void outputRefLength();
-		void insert32(uint64_t, uint32_t, uint32_t, uint8_t);
-		void insert32_d(uint64_t, uint32_t, uint32_t, uint32_t, uint8_t, uint8_t);
+		//void insert32(uint64_t, uint32_t, uint32_t, uint8_t);
+		//void insert32_d(uint64_t, uint32_t, uint32_t, uint32_t, uint8_t, uint8_t);
 		//void try_increase_cnt_32(uint64_t, uint32_t, uint32_t);
 		void insert64(uint64_t, uint32_t, uint32_t, uint8_t);
 		void insert64_d(uint64_t, uint32_t, uint32_t, uint32_t, uint8_t, uint8_t);

@@ -295,7 +295,7 @@ void FastaReader::allocSuffixArray(int doubly_unique) {
 	}	
 }
 
-void FastaReader::insert32(uint64_t i, uint32_t length, uint32_t rid, uint8_t occ) {
+/*void FastaReader::insert32(uint64_t i, uint32_t length, uint32_t rid, uint8_t occ) {
 	uint32_t bucket = hasht->computeHashVal(seqs_ + i);
 	pthread_spin_lock(hasht_access);
 	hasht->insert32(bucket, seqs_ + i, length, rid, occ);
@@ -307,7 +307,7 @@ void FastaReader::insert32_d(uint64_t i, uint32_t length, uint32_t rid, uint32_t
 	pthread_spin_lock(hasht_access);
 	hasht->insert32_d(bucket, seqs_ + i, length, rid, occ, rid2, occ2);
 	pthread_spin_unlock(hasht_access);
-}
+}*/
 
 void FastaReader::insert64(uint64_t i, uint32_t length, uint32_t rid, uint8_t occ) {
 	uint64_t bucket = hasht->computeHashVal64(seqs_ + i);
@@ -396,9 +396,9 @@ void* FastaReader::computeIndexmin() {
 
 		// Index: minimum # unique substrings that cover every unique L-mer.
 		if ((i > start_ + L) && (lastl > 0)) {
-			if (HASH_LEN_ < 16)
-				insert32(lastj - 1, lastl, refID[lastr], occ[lastj - 1]);
-			else
+			//if (HASH_LEN_ < 16)
+			//	insert32(lastj - 1, lastl, refID[lastr], occ[lastj - 1]);
+			//else
 				insert64(lastj - 1, lastl, refID[lastr], occ[lastj - 1]);
 			start_ = lastj;
 		}
@@ -494,9 +494,9 @@ void* FastaReader::computeIndexmin_d() {
 
 		// Index: minimum # unique substrings that cover every unique L-mer.
 		if ((i > start_ + L) && (lastl > 0)) {
-			if (HASH_LEN_ < 16)
-				insert32_d(lastj - 1, lastl, refID[lastr], GSA2[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
-			else
+			//if (HASH_LEN_ < 16)
+			//	insert32_d(lastj - 1, lastl, refID[lastr], GSA2[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
+			//else
 				insert64_d(lastj - 1, lastl, refID[lastr], GSA2[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
 			start_ = lastj;
 		} 
@@ -592,11 +592,11 @@ void* FastaReader::computeIndexmin_d_() {
 
 		// Index: minimum # unique substrings that cover every unique L-mer.
 		if ((i > start_ + L) && (lastl > 0)) {
-			if (HASH_LEN_ < 16)
-				insert32_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
-			else {
+			//if (HASH_LEN_ < 16)
+			//	insert32_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
+			//else {
 				insert64_d(lastj - 1, lastl, refID[lastr], GSA2_[lastj - 1], occ[lastj - 1], occ2[lastj - 1]);
-			}
+			//}
 			start_ = lastj;
 		} 
 
@@ -659,9 +659,9 @@ void FastaReader::computeIndex(int mode) {
 
 	if (mode == 1) {
 		std::string index_file = "index_u_kir.bin1";
-		if (HASH_LEN_ < 16)
-			hasht->encodeIdx32(index_file, 0);
-		else
+		//if (HASH_LEN_ < 16)
+		//	hasht->encodeIdx32(index_file, 0);
+		//else
 			hasht->encodeIdx64(index_file, 0);
 		FILE *lcFile = fopen("./unique_lmer_count_u_kir.out", "w");
 		fprintf(lcFile, "REFID\tCNT\n");
@@ -683,9 +683,9 @@ void FastaReader::computeIndex(int mode) {
 	}
 	if (mode == 2) {
 		std::string index_file = "index_d_kir.bin2";
-		if (HASH_LEN_ < 16)
-			hasht->encodeIdx32_d(index_file, 0);
-		else
+		//if (HASH_LEN_ < 16)
+		//	hasht->encodeIdx32_d(index_file, 0);
+		//else
 			hasht->encodeIdx64_d(index_file, 0);
 		FILE *lcFile = fopen("./unique_lmer_count_d_kir.out", "w");
 		fprintf(lcFile, "REFID\tCNT\n");
@@ -707,9 +707,9 @@ void FastaReader::computeIndex(int mode) {
 	}
 	if (mode == 3) {
 		std::string index_file = "index_d_kir.bin2";
-		if (HASH_LEN_ < 16)
-			hasht->encodeIdx32_d(index_file, 0);
-		else
+		//if (HASH_LEN_ < 16)
+		//	hasht->encodeIdx32_d(index_file, 0);
+		//else
 			hasht->encodeIdx64_d(index_file, 0);
 		FILE *pFile = fopen("./unique_lmer_count_d_kir.out", "w");
 		fprintf(pFile, "REFID\tCNT\n");

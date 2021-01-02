@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include <chrono>
+#include <omp.h>
 #include <ilcplex/ilocplex.h>
 
 #include "query.hpp"
@@ -26,62 +27,47 @@ Genome::Genome(uint32_t taxid, std::string &gn) {
 	name = gn;
 }
 
-FqReader::FqReader(int d, int ho, uint32_t hl, std::string &idx_fn, std::string &map_fn) {
-	doubly_unique = d;
-	hash_option = ho;
-	if (d == 0) {
-		ht_u = new Hash(hl);
-		hash_len_u = hl;
-		IDXFILEU = idx_fn;
-	} else {
-		ht_d = new Hash(hl);
-		hash_len_d = hl;
-		IDXFILED = idx_fn;
-	}
-	MAPFILE = map_fn;
-}
-
-FqReader::FqReader(int ho, uint32_t hl_u, std::string &idx_fn_u, 
-		uint32_t hl_d, std::string &idx_fn_d, std::string &map_fn) {
-	doubly_unique = 2;
-	hash_option = ho;
-	ht_u = new Hash(hl_u);
-	ht_d = new Hash(hl_d);
-	hash_len_u = hl_u;
-	hash_len_d = hl_d;
-	IDXFILEU = idx_fn_u;
-	IDXFILED = idx_fn_d;
-	MAPFILE = map_fn;
-}
-
-FqReader::FqReader(int ho, uint32_t hl_u, std::string &idx_fn_u, 
-		uint32_t hl_d, std::string &idx_fn_d, std::string &map_fn,
-		std::string &output_fn, float erate) {
-	doubly_unique = 2;
-	hash_option = ho;
-	ht_u = new Hash(hl_u);
-	ht_d = new Hash(hl_d);
-	hash_len_u = hl_u;
-	hash_len_d = hl_d;
+FqReader::FqReader(std::string &idx_fn_u, std::string &idx_fn_d, std::string &map_fn, 
+		std::string &output_fn, float erate, bool debug_option) {
+	ht_u = new Hash(26);
+	ht_d = new Hash(26);
+	//hash_len_u = hl;
+	//hash_len_d = hl;
 	IDXFILEU = idx_fn_u;
 	IDXFILED = idx_fn_d;
 	MAPFILE = map_fn;
 	OUTPUTFILE = output_fn;
 	erate_ = erate;
+	debug_display = debug_option;
 }
 
-FqReader::FqReader(int ho, uint32_t hl, std::string &idx_fn_u, 
-		std::string &idx_fn_d, std::string &map_fn,
-		std::string &output_fn, float erate) {
-	doubly_unique = 2;
-	hash_option = ho;
+
+FqReader::FqReader(uint32_t hl, std::string &idx_fn_u, std::string &idx_fn_d, 
+		std::string &map_fn, std::string &output_fn, float erate, bool debug_option) {
 	ht_u = new Hash(hl);
+	ht_d = new Hash(hl);
 	hash_len_u = hl;
+	hash_len_d = hl;
 	IDXFILEU = idx_fn_u;
 	IDXFILED = idx_fn_d;
 	MAPFILE = map_fn;
 	OUTPUTFILE = output_fn;
 	erate_ = erate;
+	debug_display = debug_option;
+}
+
+FqReader::FqReader(uint32_t hl_u, std::string &idx_fn_u, uint32_t hl_d, std::string &idx_fn_d, 
+		std::string &map_fn, std::string &output_fn, float erate, bool debug_option) {
+	ht_u = new Hash(hl_u);
+	ht_d = new Hash(hl_d);
+	hash_len_u = hl_u;
+	hash_len_d = hl_d;
+	IDXFILEU = idx_fn_u;
+	IDXFILED = idx_fn_d;
+	MAPFILE = map_fn;
+	OUTPUTFILE = output_fn;
+	erate_ = erate;
+	debug_display = debug_option;
 }
 
 void FqReader::clearReads() {
@@ -111,9 +97,9 @@ void FqReader::loadIdx_p() {
 	pthread_create(&threads[1], NULL, loadIdx_d, this);
 	for (int i = 0; i < 2; i++)
 		pthread_join(threads[i], NULL);
-		
-	fprintf(stderr, "Loaded index files into memory.\n");
 
+	assert(hash_len_u > 0 && hash_len_d > 0);		
+	fprintf(stderr, "Loaded index files into memory.\n");
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 					(std::chrono::high_resolution_clock::now() - start).count();
 	fprintf(stderr, "Time for loading index: %lu ms.\n", duration);
@@ -206,7 +192,10 @@ void FqReader::queryFastq_p(std::string &INDIR) {
 	loadGenomeLength();
 	for (size_t fq_idx = 0; fq_idx < qfilenames.size(); fq_idx++) {
 		getFqnameWithoutDir(fq_idx);
-		query64_p(100, fq_idx);
+		if (nthreads == 1)
+			query64_p(100, fq_idx);
+		else
+			query64mt_p(100, fq_idx);
 		runILP_p(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
 		if (fq_idx < qfilenames.size() - 1)
 			resetCounters();
@@ -224,7 +213,10 @@ void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_) {
 	loadGenomeLength();
 	for (size_t fq_idx = 0; fq_idx < qfilenames_.size(); fq_idx++) {
 		getFqnameWithoutDir(fq_idx);
-		query64_p(100, fq_idx);
+		if (nthreads == 1)
+			query64_p(100, fq_idx);
+		else
+			query64mt_p(100, fq_idx);
 		runILP_p(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
 		if (fq_idx < qfilenames_.size() - 1)
 			resetCounters();
@@ -462,6 +454,246 @@ void FqReader::query64_p(size_t rl, size_t file_idx) {
 			fprintf(stderr, "Processed %lu reads.\r", nrd);
 	}
 
+	delete [] rc_read;
+	fprintf(stderr, "\nNumber of unlabeled reads: %lu.\n", nundet);
+	fprintf(stderr, "Number of reads with conflict labels: %lu.\n", nconf);
+	fprintf(stderr, "Completed query %s.\n", current_filename.c_str());
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for query: %lu ms.\n", duration);
+}
+
+void FqReader::query64mt_p(size_t rl, size_t file_idx) {
+	auto start = std::chrono::high_resolution_clock::now();
+	//fprintf (stderr, "%d\t%d\n", nthreads, omp_get_num_threads());
+	//assert(nthreads == omp_get_num_threads());
+	std::vector<uint8_t*> rc_read;
+	for (int thread_num = 0; thread_num < nthreads; thread_num++) {
+		uint8_t *new_read = new uint8_t[max_rl];
+		rc_read.push_back(new_read);
+	}
+	size_t nrd = 0;
+
+	fprintf(stderr, "Querying %s.\n", current_filename.c_str());
+	size_t total_nrd = reads[file_idx].size();
+	#pragma omp parallel for shared(nrd)
+	for (size_t read_idx = 0; read_idx < total_nrd; read_idx++) {
+		uint64_t hv = 0;
+		uint32_t hs = 0;
+		pleafNode *pln;
+		std::set<uint32_t> intersection;
+		std::set<pleafNode*> pnodes;
+		std::set<uint32_t> rids;
+		std::set<std::pair<uint32_t, uint32_t>> rid_pairs;
+		uint8_t *read = reads[file_idx][read_idx];
+		const int thread_id = omp_get_thread_num();
+
+		/* Forward strand. */
+		/* Query unique and doubly-unique substrings. */
+		hs = 2 * hash_len_u - 2;
+		hv = 0;
+		for (size_t i = 0; i < hash_len_u; i++)
+			hv = ((hv << 2) | symbolIdx[read[i]]);
+		for (size_t i = 0; i < rl - hash_len_u; i++) {
+			pln = ht_u->find64_p(hv, read + i + hash_len_u, rl - hash_len_u - i);
+			if (pln != NULL)
+				pnodes.insert(pln);
+			pln = ht_d->find64_p(hv, read + i + hash_len_u, rl - hash_len_u - i);
+			if (pln != NULL)
+				pnodes.insert(pln);
+			hv = hv - ((uint64_t) symbolIdx[read[i]] << hs); /* Next hash. */
+			hv = ((hv << 2) | symbolIdx[read[i + hash_len_u]]);
+		}
+		pln = ht_u->find64_p(hv, read, 0);
+		if (pln != NULL)
+			pnodes.insert(pln);
+		pln = ht_d->find64_p(hv, read, 0);
+		if (pln != NULL)
+			pnodes.insert(pln);
+
+		/* Reverse complement. */
+		getRC(rc_read[thread_id], read, rl);
+
+		/* Query unique and doubly-unique substrings. */
+		hs = 2 * hash_len_u - 2;
+		hv = 0;
+		for (size_t i = 0; i < hash_len_u; i++)
+			hv = ((hv << 2) | symbolIdx[rc_read[thread_id][i]]);
+
+		for (size_t i = 0; i < rl - hash_len_u; i++) {
+			pln = ht_u->find64_p(hv, rc_read[thread_id] + i + hash_len_u, rl - hash_len_u - i);
+			if (pln != NULL)
+				pnodes.insert(pln);
+			pln = ht_d->find64_p(hv, rc_read[thread_id] + i + hash_len_u, rl - hash_len_u - i);
+			if (pln != NULL)
+				pnodes.insert(pln);
+			hv = hv - ((uint64_t) symbolIdx[rc_read[thread_id][i]] << hs); /* Next hash. */
+			hv = ((hv << 2) | symbolIdx[rc_read[thread_id][i + hash_len_u]]);
+		}
+		pln = ht_u->find64_p(hv, rc_read[thread_id], 0);
+		if (pln != NULL)
+			pnodes.insert(pln);
+		pln = ht_d->find64_p(hv, rc_read[thread_id], 0);
+		if (pln != NULL)
+			pnodes.insert(pln);
+
+		/* Record results. */
+		int i = 0;
+		for (auto pn : pnodes) {
+			if (pn->refID2 == 0)
+				rids.insert(pn->refID1);
+			else {
+				if (pn->refID1 < pn->refID2)
+					rid_pairs.insert(std::make_pair(pn->refID1, pn->refID2));
+				else
+					rid_pairs.insert(std::make_pair(pn->refID2, pn->refID1));
+			}
+		}
+
+		switch (rid_pairs.size()) {
+			case 0:
+				if (rids.empty()) {
+					#pragma omp critical 
+					{
+						nundet++;
+					}
+				} else {
+					if (rids.size() == 1) {
+						#pragma omp critical 
+						{
+							for (auto rid : rids)
+								genomes[rid]->read_cnts_u++;
+							for (auto pn : pnodes)
+								pn->rcount += 1;
+						}
+					} else {
+						#pragma omp critical 
+						{
+							nconf++;
+						}
+					}
+				}
+				break;
+			case 1:
+				if (rids.empty()) {
+					#pragma omp critical 
+					{
+						for (auto rid_pair : rid_pairs) {
+							genomes[rid_pair.first]->read_cnts_d++;
+							genomes[rid_pair.second]->read_cnts_d++;
+						}
+						for (auto pn : pnodes)
+							pn->rcount += 1;
+					}
+				} else {
+					if (rids.size() > 1) {
+						#pragma omp critical 
+						{
+							nconf++;
+						}
+					} else {
+						for (auto rid : rids)
+							for (auto rid_pair : rid_pairs)
+								if (rid_pair.first != rid && rid_pair.second != rid) {
+									#pragma omp critical 
+									{
+										nconf++;
+									}
+								} else {
+									#pragma omp critical 
+									{
+										genomes[rid]->read_cnts_u++;
+										genomes[rid]->read_cnts_d++;
+										for (auto pn : pnodes)
+											pn->rcount += 1;
+									}
+								}
+					}
+				}
+				break;
+			default:
+				if (!rids.empty()) {
+					if (rids.size() > 1) {
+						#pragma omp critical 
+						{
+							nconf++;
+						}
+						break;
+					}
+					for (auto rid : rids) {
+						bool conf = 0;
+						for (auto rid_pair : rid_pairs)
+							if (rid_pair.first != rid && rid_pair.second != rid) {
+								conf = 1;
+								break;
+							}
+						if (conf) {
+							#pragma omp critical 
+							{
+								nconf++;
+							}
+						} else {
+							#pragma omp critical 
+							{
+								genomes[rid]->read_cnts_u++;
+								genomes[rid]->read_cnts_d++;
+								for (auto pn : pnodes)
+									pn->rcount += 1;
+							}
+						}
+					}
+				} else {
+					i = 0;
+					for (auto rid_pair : rid_pairs) {
+						if (i == 0) {	
+							intersection.insert(rid_pair.first);
+							intersection.insert(rid_pair.second);
+						} else {
+							std::vector<uint32_t> to_be_removed;
+							for (auto rid : intersection) {
+								if (rid_pair.first != rid && rid_pair.second != rid)
+									to_be_removed.push_back(rid);
+							}
+							for (auto rid : to_be_removed)
+								intersection.erase(rid);
+						}
+						i++;
+					}
+					switch (intersection.size()) {
+						case 0:
+							#pragma omp critical 
+							{
+								nconf++;
+							}
+							break;
+						case 1:
+							#pragma omp critical 
+							{
+								for (auto rid : intersection)
+									genomes[rid]->read_cnts_d++;
+								for (auto pn : pnodes)
+									pn->rcount += 1;
+							}
+							break;
+						default:
+							#pragma omp critical 
+							{
+								nconf++;
+							}
+							break;
+					}
+				}
+				break;
+		}
+		#pragma omp critical 
+		{
+			if (nrd++ % 100000 == 0)
+				fprintf(stderr, "Processed %lu reads.\r", nrd);
+		}
+	}
+
+	for (auto new_read : rc_read)
+		delete [] new_read;
 	fprintf(stderr, "\nNumber of unlabeled reads: %lu.\n", nundet);
 	fprintf(stderr, "Number of reads with conflict labels: %lu.\n", nconf);
 	fprintf(stderr, "Completed query %s.\n", current_filename.c_str());
@@ -640,10 +872,12 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 	// Solving the ILP.
 	try {	
 		IloCplex cplex(model);
-		//cplex.setParam(IloCplex::IntParam::Threads, 32);
+		if (nthreads > 1)
+			cplex.setParam(IloCplex::IntParam::Threads, nthreads);
 		cplex.setParam(IloCplex::NumParam::TiLim, 10800);
 		cplex.setParam(IloCplex::NumParam::SolnPoolAGap, 0.0);
-		cplex.setOut(env.getNullStream());
+		if (!debug_display)
+			cplex.setOut(env.getNullStream());
 
 		if (cplex.solve()) {
 			fprintf(fout, "Query %s:\n", current_filename.c_str());

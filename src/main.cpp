@@ -56,17 +56,18 @@ int main(int argc, char** argv) {
 
 	/* Check the parameters. */
 	int K = -1, Lmax = -1, L = -1, t = 1, h = -1, h1 = -1, h2 = -1;
-	std::string fa_name = "", fa_dir = "", fm_name = "", fi_name = "", fq_name = "", fq_dir = "";
+	std::string fa_name = "", fa_dir = "", fm_name = "", fi_name1 = "", fi_name2 = "", fq_name = "", fq_dir = "";
 	std::vector<std::string> fa_names;
 	std::vector<std::string> fq_names;
 	FastaReader *main_fr = NULL;
 	FqReader *main_fqr = NULL;
 	int mode = -1;
+	bool debug_info = 0;
 	std::string idx_option;
 	std::string output;
 	float erate = 0.01;
-	int u = 0, hash_option = 32;
-	std::string i1fn, i2fn;
+	//int u = 0, hash_option = 32;
+	//std::string i1fn, i2fn;
 	for (int i = 1; i < argc; i++) {
 		std::string val(argv[i]);
 		if (val == "--build") {
@@ -119,7 +120,7 @@ int main(int argc, char** argv) {
 				exit(EXIT_FAILURE);
 			}
 			//i++;
-			//idx_option = "both";
+			debug_info = 1;
 			continue;
 		}
 		if (val == "-k") {
@@ -190,12 +191,12 @@ int main(int argc, char** argv) {
 			while (i < argc && argv[i][0] != '-') {
 				std::string filename = argv[i++];
 				std::string ext = filename.substr(filename.find_last_of(".") + 1);
-				if (ext == "idx" || ext == "bin")
-					fi_name = filename;
+				//if (ext == "idx" || ext == "bin")
+				//	fi_name = filename;
 				if (ext == "idx1" || ext == "bin1")
-					i1fn = filename;
+					fi_name1 = filename;
 				if (ext == "idx2" || ext == "bin2")
-					i2fn = filename;
+					fi_name2 = filename;
 			}
 			i--;
 			continue;
@@ -412,23 +413,18 @@ int main(int argc, char** argv) {
 				delete main_fr;
 			break;
 		case 1:
-			if (fi_name != "") {
-				u = (idx_option.compare("doubly_unique") == 0) ? 1 : 0;
-				if (h == -1) {
-					fprintf(stderr, "Please specify a valid hash length.\n");
-					exit(EXIT_FAILURE);
-				}
-				hash_option = (h >= 16) ? 64 : 32;
-				main_fqr = new FqReader(u, hash_option, h, fi_name, fm_name);
-			} else {
+			if (h == -1) {
 				if (h1 == -1 || h2 == -1) {
-					fprintf(stderr, "Please specify a valid hash length.\n");
-					exit(EXIT_FAILURE);
+					fprintf(stderr, "Warning: Hash length not specified, using that encoded in the index.\n");
+					main_fqr = new FqReader(fi_name1, fi_name2, fm_name, output, erate, debug_info);
 				}
-				main_fqr = new FqReader(32, h1, i1fn, h2, i2fn, fm_name, output, erate);
+				main_fqr = new FqReader(h1, fi_name1, h2, fi_name2, fm_name, output, erate, debug_info);
+			} else {
+				main_fqr = new FqReader(h, fi_name1, fi_name2, fm_name, output, erate, debug_info);
 			}
 			main_fqr->loadIdx_p();
 			main_fqr->loadSmap();
+			main_fqr->nthreads = t;
 			if (!fq_names.empty())
 				main_fqr->queryFastq_p(fq_names);
 			else {
