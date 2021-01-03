@@ -11,7 +11,13 @@
 #include <algorithm>
 #include <chrono>
 #include <omp.h>
+
+#ifdef CPLEX
 #include <ilcplex/ilocplex.h>
+#endif
+#ifdef GUROBI
+#include <./gurobi_c++.h>
+#endif
 
 #include "query.hpp"
 #include "binaryio.hpp"
@@ -196,7 +202,12 @@ void FqReader::queryFastq_p(std::string &INDIR) {
 			query64_p(100, fq_idx);
 		else
 			query64mt_p(100, fq_idx);
-		runILP_p(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+		#ifdef CPLEX
+			runILP_cplex(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+		#endif
+		#ifdef GUROBI
+			runILP_gurobi(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+		#endif
 		if (fq_idx < qfilenames.size() - 1)
 			resetCounters();
 	}
@@ -217,7 +228,12 @@ void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_) {
 			query64_p(100, fq_idx);
 		else
 			query64mt_p(100, fq_idx);
-		runILP_p(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+		#ifdef CPLEX
+			runILP_cplex(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+		#endif
+		#ifdef GUROBI
+			runILP_gurobi(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+		#endif
 		if (fq_idx < qfilenames_.size() - 1)
 			resetCounters();
 	}
@@ -702,7 +718,8 @@ void FqReader::query64mt_p(size_t rl, size_t file_idx) {
 	fprintf(stderr, "Time for query: %lu ms.\n", duration);
 }
 
-void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t unique_thres, 
+#ifdef CPLEX
+void FqReader::runILP_cplex(size_t file_idx, int rl, int read_cnt_thres, uint32_t unique_thres, 
 			double erate, double max_cov, double resolution, double epsilon) {
 	auto start = std::chrono::high_resolution_clock::now();
 	
@@ -910,6 +927,215 @@ void FqReader::runILP_p(size_t file_idx, int rl, int read_cnt_thres, uint32_t un
 			(std::chrono::high_resolution_clock::now() - start).count();
 	fprintf(stderr, "Time for quantification through CPLEX: %lu ms.\n", duration);
 }
+#endif
+
+#ifdef GUROBI
+void FqReader::runILP_gurobi(size_t file_idx, int rl, int read_cnt_thres, uint32_t unique_thres, 
+			double erate, double max_cov, double resolution, double epsilon) {
+	auto start = std::chrono::high_resolution_clock::now();
+	
+	// Initialize cplex environment.
+	GRBEnv *env = new GRBEnv();
+	GRBModel model = GRBModel(*env);
+	GRBQuadExpr objective = 0;
+	
+	// Binary variable EXIST[l]: Existence of species l.
+	size_t n_species = genomes.size() - 1;
+	exist = new int[n_species];
+	memset(exist, 1, sizeof(int) * n_species);
+
+	GRBVar *EXIST = model.addVars(n_species, GRB_BINARY);
+	fprintf(stderr, "ILP environment in GUROBI initialized.\n");
+
+	// Constraint 0: If the number of reads being assigned to a particular 
+	//	genome g is less than READ_CNT_THRES, then EXIST[g] is set to 0
+	for (size_t i = 1; i <= n_species; i++) {
+		double d1 = genomes[i]->read_cnts_u * 1.0, d2 = genomes[i]->read_cnts_u * 1.0;
+		d1 -= read_cnt_thres;
+		d2 -= (1.0 * genomes[i]->nus) * resolution;
+		if (genomes[i]->nus >= unique_thres) {
+			if (d1 < 0.0 || d2 < 0.0) {
+				exist[i - 1] = 0;
+				model.addConstr(EXIST[i - 1] == 0);
+			} 
+		} else {
+			if (d2 < 0.0) {
+				exist[i - 1] = 0;
+				model.addConstr(EXIST[i - 1] == 0);
+			}
+		}
+	}
+	for (size_t i = 1; i <= n_species; i++) {
+		float d1 = genomes[i]->read_cnts_d * 1.0, d2 = genomes[i]->read_cnts_d * 1.0;
+		d1 -= read_cnt_thres;
+		d2 -= (1.0 * genomes[i]->nds) * resolution;
+		if (genomes[i]->nus >= unique_thres) { // we should try nds?
+			if (d1 < 0.0 || d2 < 0.0) {
+				exist[i - 1] = 0;
+				model.addConstr(EXIST[i - 1] == 0);
+			} 
+		} else {
+			if (d2 < 0.0) {
+				exist[i - 1] = 0;
+				model.addConstr(EXIST[i - 1] == 0);
+			} 
+		}
+	}
+
+	size_t n_species_exist = 0;
+	for (size_t i = 0; i < n_species; i++)
+		if (exist[i]) 
+			n_species_exist++;
+	fprintf(stderr, "%lu genomes may exist in query %s.\n", n_species_exist, current_filename.c_str());
+
+	size_t num_us_valid = 0, abs_index = 0;
+	for (size_t i = 0; i < n_species; i++) {
+		if (exist[i] > 0) {
+			num_us_valid += ht_u->map_sp[i + 1].size();
+			num_us_valid += ht_d->map_sp[i + 1].size();
+		}
+	}
+	fprintf(stderr, "Filtered out invalid genomes by read counts.\n");
+
+	// Continuous variable C[l]: Coverage of species l.
+	GRBVar *COV = model.addVars(n_species, GRB_CONTINUOUS);
+
+	// Minimize the total number of species. 
+	for (size_t i = 0; i < n_species; i++) {
+		double u_factor = 1000.0 / ht_u->map_sp[i + 1].size();
+		if (exist[i] > 0) {
+			for (auto pn : ht_u->map_sp[i + 1]) {
+				assert((i + 1 == pn->refID1) || (i + 1 == pn->refID2));
+				double wcov = (pn->ucount1 * (rl - pn->depth) * 1.0 / rl);
+				wcov = wcov * pow(1 - erate, pn->depth);
+				objective += (wcov * COV[i] - pn->rcount) * (wcov * COV[i] - pn->rcount) * u_factor;
+				abs_index++;
+			} 
+		}
+	}
+	for (size_t i = 0; i < n_species; i++) {
+		double d_factor = 1000.0 / ht_d->map_sp[i + 1].size();
+		if (exist[i] > 0) {
+			for (auto pn : ht_d->map_sp[i + 1]) {
+				assert((i + 1 == pn->refID1) || (i + 1 == pn->refID2));
+				uint32_t si1 = pn->refID1 - 1, si2 = pn->refID2 - 1;
+				double wcov1 = (pn->ucount1 * (rl - pn->depth) * 1.0 / rl);
+				double wcov2 = (pn->ucount2 * (rl - pn->depth) * 1.0 / rl);
+				wcov1 = wcov1 * pow(1 - erate, pn->depth);
+				wcov2 = wcov2 * pow(1 - erate, pn->depth);
+				objective += (wcov1 * COV[si1] + wcov2 * COV[si2] - pn->rcount) * 
+						(wcov1 * COV[si1] + wcov2 * COV[si2] - pn->rcount) * d_factor;
+				abs_index++;
+			} 
+		}
+	}
+	model.setObjective(objective, GRB_MINIMIZE);
+	fprintf(stderr, "Constructed the objective function.\n");
+
+	// Constraint 3: COV should match EXIST
+	for (size_t i = 0; i < n_species; i++) {
+		model.addConstr(COV[i] <= max_cov * EXIST[i]);
+		model.addConstr(COV[i] >= 0.01 * EXIST[i]);
+	}
+	
+	for (size_t i = 0; i < n_species; i++) {
+		if (exist[i] > 0) {
+			GRBLinExpr EXP1 = 0;
+			for (auto pn : ht_u->map_sp[i + 1]) {
+				double wcov = (pn->ucount1 * (rl - pn->depth) * 1.0 / rl);
+				wcov = wcov * pow(1 - erate, pn->depth);
+				EXP1 += wcov * COV[i];
+			} 
+			if (genomes[i + 1]->nus >= unique_thres)
+				model.addConstr(EXP1 * (1.0 + epsilon) - genomes[i + 1]->read_cnts_u >= 0);
+			else
+				model.addConstr(EXP1 >= 0.0);	
+		}
+	}
+	for (size_t i = 0; i < n_species; i++) {
+		if (exist[i] > 0) {
+			GRBLinExpr EXP2 = 0;
+			for (auto pn : ht_d->map_sp[i + 1]) {
+				uint32_t si1 = pn->refID1 - 1, si2 = pn->refID2 - 1;
+				double wcov1 = (pn->ucount1 * (rl - pn->depth) * 1.0 / rl);
+				double wcov2 = (pn->ucount2 * (rl - pn->depth) * 1.0 / rl);
+				wcov1 = wcov1 * pow(1 - erate, pn->depth);
+				wcov2 = wcov2 * pow(1 - erate, pn->depth);
+				EXP2 += wcov1 * COV[si1] + wcov2 * COV[si2];
+			}
+			if (genomes[i + 1]->nus >= unique_thres)
+				model.addConstr(EXP2 * (1.0 + epsilon) - genomes[i + 1]->read_cnts_d >= 0);
+			else
+				model.addConstr(EXP2 >= 0.0);
+		}
+	}
+
+	// Constraint 4: refining the search space
+	GRBLinExpr TOTAL = 0;
+	for (size_t i = 0; i < n_species; i++)
+		TOTAL += (COV[i] * (1.0 * genomes[i + 1]->glength) / rl);
+	model.addConstr(TOTAL <= (1.0 + epsilon) * reads[file_idx].size());
+
+	GRBLinExpr e1 = 0;
+	for (size_t i = 0; i < n_species; i++)
+		e1 += EXIST[i];
+	model.addConstr(e1 <= n_species_exist * 1.0);
+	fprintf(stderr, "Constructed ILP constraints for genome quantification.\n");
+
+	FILE *fout;
+	if (file_idx == 0)
+		fout = fopen(OUTPUTFILE.c_str(), "w");
+	else
+		fout = fopen(OUTPUTFILE.c_str(), "a");
+
+	// Solving the ILP.
+	try {
+		//if (nthreads > 1) {
+		//	model.set("Threads", "nthreads");
+			//fprintf(stderr, "%.1f\n", stof(model.get("Threads")) );
+		//}
+		model.set("TimeLimit", "10800.0");
+		model.set("MIPGapAbs", "0.0");
+		//if (!debug_display)
+		//	model.set("OutputFlag", "0.0");
+
+		model.optimize();
+		fprintf(stderr, "%d\n", GRB_OPTIMAL);
+		if (GRB_OPTIMAL == 2) {
+			fprintf(fout, "Query %s:\n", current_filename.c_str());
+			fprintf(fout, "TAXID\tABUNDANCE\tNAME\n");
+			double total_cov = 0.0;
+			std::vector<size_t> grb_solution;
+			for (size_t i = 0; i < n_species; i++) {
+				bool ei = (EXIST[i].get(GRB_DoubleAttr_X) > 0.9);
+				double ci = COV[i].get(GRB_DoubleAttr_X);
+				if (ei != 0) {
+					total_cov += ci;
+					grb_solution.push_back(i);
+				}
+			}
+			for (auto si : grb_solution)
+				fprintf(fout, "%u\t%.6f\t%s\n", genomes[si + 1]->taxID,
+					COV[si].get(GRB_DoubleAttr_X) / total_cov, genomes[si + 1]->name.c_str());
+			if (file_idx < qfilenames.size() - 1)
+				fprintf(fout, "\n");
+		}
+
+		fclose(fout);
+
+	} catch (GRBException e) {}
+
+	if (exist != NULL)
+		delete [] exist;
+	delete [] EXIST;
+	delete [] COV;
+	delete env;
+
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for quantification through CPLEX: %lu ms.\n", duration);
+}
+#endif
 
 void FqReader::resetCounters() {
 	auto start = std::chrono::high_resolution_clock::now();

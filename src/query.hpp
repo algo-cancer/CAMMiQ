@@ -112,7 +112,8 @@ class FqReader {
 
 		void getRC(uint8_t*, uint8_t*, size_t);
 
-		void runILP_p(size_t, int, int, uint32_t, double, double, double, double);
+		void runILP_cplex(size_t, int, int, uint32_t, double, double, double, double);
+		void runILP_gurobi(size_t, int, int, uint32_t, double, double, double, double);
 
 		void resetCounters();
 		
