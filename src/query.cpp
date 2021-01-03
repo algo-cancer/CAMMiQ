@@ -1090,17 +1090,15 @@ void FqReader::runILP_gurobi(size_t file_idx, int rl, int read_cnt_thres, uint32
 
 	// Solving the ILP.
 	try {
-		//if (nthreads > 1) {
-		//	model.set("Threads", "nthreads");
-			//fprintf(stderr, "%.1f\n", stof(model.get("Threads")) );
-		//}
+		if (nthreads > 1)
+			model.set(GRB_IntParam_Threads, nthreads);
 		model.set("TimeLimit", "10800.0");
 		model.set("MIPGapAbs", "0.0");
-		//if (!debug_display)
-		//	model.set("OutputFlag", "0.0");
+		if (!debug_display)
+			model.set(GRB_IntParam_OutputFlag, 0);
 
 		model.optimize();
-		fprintf(stderr, "%d\n", GRB_OPTIMAL);
+		//fprintf(stderr, "%d\n", GRB_OPTIMAL);
 		if (GRB_OPTIMAL == 2) {
 			fprintf(fout, "Query %s:\n", current_filename.c_str());
 			fprintf(fout, "TAXID\tABUNDANCE\tNAME\n");
@@ -1122,14 +1120,17 @@ void FqReader::runILP_gurobi(size_t file_idx, int rl, int read_cnt_thres, uint32
 		}
 
 		fclose(fout);
+	} catch (GRBException e) {
+		fprintf(stderr, "%s\n", e.getMessage().c_str());
+		abort();
+	}
 
-	} catch (GRBException e) {}
-
-	if (exist != NULL)
-		delete [] exist;
 	delete [] EXIST;
 	delete [] COV;
-	delete env;
+	if (env)
+		delete env;
+	if (exist != NULL)
+		delete [] exist;
 
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 			(std::chrono::high_resolution_clock::now() - start).count();
