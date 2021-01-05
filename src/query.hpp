@@ -113,10 +113,10 @@ class FqReader {
 		void query64mt_p(size_t);
 		void query64_sc(size_t);
 
-		void queryFastq_p(std::string&, size_t);
-		void queryFastq_p(std::vector<std::string>&, size_t);
-		void queryFastq_sc(std::string&, size_t);
-		void queryFastq_sc(std::vector<std::string>&, size_t);
+		void queryFastq_p(std::string&, size_t, std::vector<double>&);
+		void queryFastq_p(std::vector<std::string>&, size_t, std::vector<double>&);
+		void queryFastq_sc(std::string&, size_t, std::vector<double>&);
+		void queryFastq_sc(std::vector<std::string>&, size_t, std::vector<double>&);
 
 		void getRC(uint8_t*, uint8_t*, size_t);
 

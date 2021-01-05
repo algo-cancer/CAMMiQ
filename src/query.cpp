@@ -191,7 +191,13 @@ void FqReader::getFqList(std::string &INDIR) {
 	}
 }
 
-void FqReader::queryFastq_p(std::string &INDIR, size_t min_l) {
+void FqReader::queryFastq_p(std::string &INDIR, size_t min_l, std::vector<double> &additional_params) {
+	int read_cnt_thres__ = (additional_params[0] > 0.0) ? (int)round(additional_params[0]) : 100;
+	uint32_t unique_thres__ = (additional_params[1] > 0.0) ? (uint32_t)round(additional_params[1]) : 10000; 
+	double max_cov__ = (additional_params[4] > 0.0) ? additional_params[4] : 100.0, 
+		resolution__ = (additional_params[3] > 0.0) ? additional_params[3] : 0.0001, 
+		epsilon__ = (additional_params[2] > 0.0) ? additional_params[2] : 0.01;
+	
 	getFqList(INDIR);		
 	prepallFastq();
 	if (min_l == 0)
@@ -206,21 +212,31 @@ void FqReader::queryFastq_p(std::string &INDIR, size_t min_l) {
 		else
 			query64mt_p(fq_idx);
 		#ifdef CPLEX
-			runILP_cplex(fq_idx, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			runILP_cplex(fq_idx, read_cnt_thres__, unique_thres__, erate_, 
+					max_cov__, resolution__, epsilon__);
 		#endif
 		#ifdef GUROBI
-			runILP_gurobi(fq_idx, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			runILP_gurobi(fq_idx, read_cnt_thres__, unique_thres__, erate_, 
+					max_cov__, resolution__, epsilon__);
 		#endif
 		if (fq_idx < qfilenames.size() - 1)
 			resetCounters();
 	}
 }
 
-void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_, size_t min_l) {		
+void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_, size_t min_l, 
+				std::vector<double> &additional_params) {		
 	if (!qfilenames.empty()) {
 		qfilenames.clear();
 		fprintf(stderr, "Flushed existing file names.\n");
 	}
+	
+	int read_cnt_thres__ = (additional_params[0] > 0.0) ? (int)round(additional_params[0]) : 100;
+	uint32_t unique_thres__ = (additional_params[1] > 0.0) ? (uint32_t)round(additional_params[1]) : 10000; 
+	double max_cov__ = (additional_params[4] > 0.0) ? additional_params[4] : 100.0, 
+		resolution__ = (additional_params[3] > 0.0) ? additional_params[3] : 0.0001, 
+		epsilon__ = (additional_params[2] > 0.0) ? additional_params[2] : 0.01;
+
 	qfilenames = qfilenames_;
 	prepallFastq();
 	if (min_l == 0)
@@ -235,17 +251,22 @@ void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_, size_t min_l)
 		else
 			query64mt_p(fq_idx);
 		#ifdef CPLEX
-			runILP_cplex(fq_idx, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			runILP_cplex(fq_idx, read_cnt_thres__, unique_thres__, erate_, 
+					max_cov__, resolution__, epsilon__);
 		#endif
 		#ifdef GUROBI
-			runILP_gurobi(fq_idx, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			runILP_gurobi(fq_idx, read_cnt_thres__, unique_thres__, erate_, 
+					max_cov__, resolution__, epsilon__);
 		#endif
 		if (fq_idx < qfilenames_.size() - 1)
 			resetCounters();
 	}
 }
 
-void FqReader::queryFastq_sc(std::string &INDIR, size_t min_l) {
+void FqReader::queryFastq_sc(std::string &INDIR, size_t min_l, std::vector<double> &additional_params) {
+	uint32_t t1 = (additional_params[0] > 0.0) ? (uint32_t)round(additional_params[0]) : 10,
+		t2 = (additional_params[1] > 0.0) ? (uint32_t)round(additional_params[1]) : 5;
+
 	getFqList(INDIR);		
 	prepallFastq();
 	if (min_l == 0)
@@ -259,21 +280,26 @@ void FqReader::queryFastq_sc(std::string &INDIR, size_t min_l) {
 			fprintf(stderr, "Single cell queries only support one thread.\n");
 		query64_sc(fq_idx);
 		#ifdef CPLEX
-			runILPsc_cplex(fq_idx, 10, 5);
+			runILPsc_cplex(fq_idx, t1, t2);
 		#endif
 		#ifdef GUROBI
-			runILPsc_gurobi(fq_idx, 10, 5);
+			runILPsc_gurobi(fq_idx, t1, t2);
 		#endif
 		if (fq_idx < qfilenames.size() - 1)
 			resetCounters_sc();
 	}
 }
 
-void FqReader::queryFastq_sc(std::vector<std::string> &qfilenames_, size_t min_l) {		
+void FqReader::queryFastq_sc(std::vector<std::string> &qfilenames_, size_t min_l,
+				std::vector<double> &additional_params) {		
 	if (!qfilenames.empty()) {
 		qfilenames.clear();
 		fprintf(stderr, "Flushed existing file names.\n");
 	}
+
+	uint32_t t1 = (additional_params[0] > 0.0) ? (uint32_t)round(additional_params[0]) : 10,
+		t2 = (additional_params[1] > 0.0) ? (uint32_t)round(additional_params[1]) : 5;
+
 	qfilenames = qfilenames_;
 	prepallFastq();
 	if (min_l == 0)
@@ -288,10 +314,10 @@ void FqReader::queryFastq_sc(std::vector<std::string> &qfilenames_, size_t min_l
 			fprintf(stderr, "Single cell queries only support one thread.\n");
 		query64_sc(fq_idx);
 		#ifdef CPLEX
-			runILPsc_cplex(fq_idx, 10, 5);
+			runILPsc_cplex(fq_idx, t1, t2);
 		#endif
 		#ifdef GUROBI
-			runILPsc_gurobi(fq_idx, 10, 5);
+			runILPsc_gurobi(fq_idx, t1, t2);
 		#endif
 		if (fq_idx < qfilenames_.size() - 1)
 			resetCounters_sc();

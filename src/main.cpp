@@ -66,9 +66,10 @@ int main(int argc, char** argv) {
 	std::string idx_option;
 	std::string output;
 	float erate = 0.01;
-	std::vector<double> fine_parameters;
-	//int u = 0, hash_option = 32;
-	//std::string i1fn, i2fn;
+	size_t min_rl = 0;
+	std::vector<double> fine_parameters = {0.0, 0.0, 0.0, 0.0, 0.0};
+	std::vector<double> fine_parameters_ = {0.0, 0.0};
+	
 	for (int i = 1; i < argc; i++) {
 		std::string val(argv[i]);
 		if (val == "--build") {
@@ -116,8 +117,103 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Option --enable_ilp_display is only valid in mode QUERY.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			//i++;
 			debug_info = 1;
+			continue;
+		}
+		if (val == "--read_length_filter") {
+			if (mode <= 0) {
+				fprintf(stderr, "Option --read_length_filter is only valid in mode QUERY.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify a parameter value for %s.\n", val.c_str()); 
+				exit(EXIT_FAILURE);
+			}
+			min_rl = (size_t) atoi(argv[i]);
+			continue;
+		}
+		if (val == "--read_cnt_thres") {
+			if (id_mode == 1) {
+				fprintf(stderr, "Option --read_cnt_thres is not valid in READ_CNTS queries.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify a parameter value for %s.\n", val.c_str()); 
+				exit(EXIT_FAILURE);
+			}
+			fine_parameters[0] = atof(argv[i]);
+			continue;
+		}
+		if (val == "--easy_to_identify_thres") {
+			if (id_mode == 1) {
+				fprintf(stderr, "Option --easy_to_identify_thres is not valid in READ_CNTS queries.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify a parameter value for %s.\n", val.c_str()); 
+				exit(EXIT_FAILURE);
+			}
+			fine_parameters[1] = atof(argv[i]);
+			continue;
+		}
+		if (val == "--ilp_epsilon") {
+			if (id_mode == 1) {
+				fprintf(stderr, "Option --ilp_epsilon is not valid in READ_CNTS queries.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify a parameter value for %s.\n", val.c_str()); 
+				exit(EXIT_FAILURE);
+			}
+			fine_parameters[2] = atof(argv[i]);
+			continue;
+		}
+		if (val == "--ilp_alpha") {
+			if (id_mode == 1) {
+				fprintf(stderr, "Option --ilp_alpha is not valid in READ_CNTS queries.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify a parameter value for %s.\n", val.c_str()); 
+				exit(EXIT_FAILURE);
+			}
+			fine_parameters[3] = atof(argv[i]);
+			continue;
+		}
+		if (val == "--max_depth") {
+			if (id_mode == 1) {
+				fprintf(stderr, "Option --max_depth is not valid in READ_CNTS queries.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify a parameter value for %s.\n", val.c_str()); 
+				exit(EXIT_FAILURE);
+			}
+			fine_parameters[4] = atof(argv[i]);
+			continue;
+		}
+		if (val == "--unique_read_cnt_thres") {
+			if (id_mode == 0) {
+				fprintf(stderr, "Option --unique_read_cnt_thres is only valid in READ_CNTS queries.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify a parameter value for %s.\n", val.c_str()); 
+				exit(EXIT_FAILURE);
+			}
+			fine_parameters_[0] = atof(argv[i]);
+			continue;
+		}
+		if (val == "--doubly_unique_read_cnt_thres") {
+			if (id_mode == 0) {
+				fprintf(stderr, "Option --doubly_unique_read_cnt_thres is only valid in READ_CNTS queries.\n"); 
+				exit(EXIT_FAILURE);
+			}
+			if (++i >= argc) {
+				fprintf(stderr, "Please specify a parameter value for %s.\n", val.c_str()); 
+				exit(EXIT_FAILURE);
+			}
+			fine_parameters_[1] = atof(argv[i]);
 			continue;
 		}
 		if (val == "-k") {
@@ -424,15 +520,15 @@ int main(int argc, char** argv) {
 			main_fqr->nthreads = t;
 			if (!fq_names.empty()) {
 				if (id_mode == 0)
-					main_fqr->queryFastq_p(fq_names, 0);
+					main_fqr->queryFastq_p(fq_names, min_rl, fine_parameters);
 				else
-					main_fqr->queryFastq_sc(fq_names, 70);
+					main_fqr->queryFastq_sc(fq_names, min_rl, fine_parameters_);
 			} else {
 				if (fq_dir != "") {
 					if (id_mode == 0)
-						main_fqr->queryFastq_p(fq_dir, 0);
+						main_fqr->queryFastq_p(fq_dir, min_rl, fine_parameters);
 					else
-						main_fqr->queryFastq_sc(fq_dir, 70);
+						main_fqr->queryFastq_sc(fq_dir, min_rl, fine_parameters_);
 				} else {
 					fprintf(stderr, "Please specify at least one query file or directory.\n");
 					exit(EXIT_FAILURE);
