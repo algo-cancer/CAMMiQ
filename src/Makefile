@@ -1,6 +1,8 @@
 
 CC = g++
 
+GRB_VERSION = 81
+
 GUROBIROOTDIR = /opt/gurobi811/linux64
 
 CPLEXROOTDIR = /opt/cplex_12.9.0/CPLEX_Studio
@@ -29,7 +31,7 @@ LIBS = -lpthread -fopenmp -ldivsufsort -llibprange
 
 LIBS_CPLEX = -lconcert -lilocplex -lcplex -ldl
 
-LIBS_GUROBI = -lgurobi_g++5.2 -lgurobi81
+LIBS_GUROBI = -lgurobi_g++5.2 -lgurobi$(GRB_VERSION)
 
 SRCS = gsa.cpp hashtrie.cpp binaryio.cpp build.cpp query.cpp main.cpp
 

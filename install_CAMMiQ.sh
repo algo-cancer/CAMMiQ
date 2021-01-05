@@ -19,7 +19,13 @@ if [ "$1" != "--cplex-dir" ]; then
 	if [ "$1" != "--gurobi-dir" ]; then
 		echo "Please clarify cplex or gurobi directory!"
 	else
-		make GUROBIROOTDIR="$2" gurobi
+		if [ "$3" != "--gurobi-version" ]; then
+			echo "Please clarify gurobi version!"
+		else
+			VERSION="$4"
+			VERSION="${VERSION:0:3}"
+			make GUROBIROOTDIR="$2" GRB_VERSION="${VERSION//.}" gurobi
+		fi
 	fi
 else
 	make CPLEXROOTDIR="$2" cplex
