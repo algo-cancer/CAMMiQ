@@ -21,7 +21,7 @@ or
 ```
 ./install_CAMMiQ.sh --gurobi-dir <GUROBI_DIR> --gurobi-version <GUROBI_VERSION>
 ```
-where ```<CPLEX_DIR>``` should be replaced with the **absolute** directory of your **CPLEX_Studio** if you use CPLEX; if you use Gurobi, ```<GUROBI_DIR>``` should be replaced with the **absolute** directory of **linux64** (under the Gurobi directory) and additionally you'll need to tell the compiler the version of your Gurobi Optimizer (usually both ```a.b``` and ```a.b.c``` formats will work).
+where ```<CPLEX_DIR>``` should be replaced with the **absolute** path to your **CPLEX_Studio** if you use CPLEX; if you use Gurobi, ```<GUROBI_DIR>``` should be replaced with the **absolute** path to **linux64** (under the Gurobi directory) and additionally you'll need to tell the compiler the version of your Gurobi Optimizer (usually both ```a.b``` and ```a.b.c``` formats should work).
 
 ### How do I use CAMMiQ?
 To begin using CAMMiQ, you will first need to index the input genomes. 
