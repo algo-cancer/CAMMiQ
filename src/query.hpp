@@ -4,6 +4,7 @@
 #include <cassert>
 #include <pthread.h>
 #include <vector>
+#include <map>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -32,6 +33,8 @@ class FqReader {
 		/* Reads. */
 		size_t max_rl = 256;
 		std::vector<std::vector<uint8_t*>> reads;
+		std::vector<std::vector<uint8_t>> rlengths;
+		std::vector<size_t> tlengths;
 		
 		/* Number of "conflict" (having more than one refID) reads. */
 		size_t nconf = 0;
@@ -39,10 +42,11 @@ class FqReader {
 		/* Number of "unlabeled" (cannot assign one refID) reads. */
 		size_t nundet = 0;
 		
-		/* Number of reads */
+		/* Meta informations. */
 		std::string MAPFILE;
 		std::vector<Genome*> genomes;
 		int *exist = NULL;
+		std::map<std::pair<uint32_t, uint32_t>, uint64_t> read_cnts_b;
 
 		/* Hash parameters. */
 		uint32_t hash_len_u = -1;
@@ -94,32 +98,41 @@ class FqReader {
 		void loadSmap();
 		void loadGenomeLength();
 
+		/* FASTQ Operations. */
 		void getFqList(std::string&);
-
-		void prepallFastq();
-
 		void readFastq(std::string&, size_t);
+		void readFastq(std::string&, size_t, size_t);
+		void readallFastq();
+		void readallFastq(size_t);
+		void prepallFastq();
+		//void prepallFastq_sc();
 
 		void getFqnameWithoutDir(size_t);
 
-		void query64_p(size_t, size_t);
-		void query64mt_p(size_t, size_t);
+		void query64_p(size_t);
+		void query64mt_p(size_t);
+		void query64_sc(size_t);
 
-		void queryFastq_p(std::string&);
-		void queryFastq_p(std::vector<std::string>&);
-
-		void readallFastq();
+		void queryFastq_p(std::string&, size_t);
+		void queryFastq_p(std::vector<std::string>&, size_t);
+		void queryFastq_sc(std::string&, size_t);
+		void queryFastq_sc(std::vector<std::string>&, size_t);
 
 		void getRC(uint8_t*, uint8_t*, size_t);
 
-		void runILP_cplex(size_t, int, int, uint32_t, double, double, double, double);
-		void runILP_gurobi(size_t, int, int, uint32_t, double, double, double, double);
+		void runILP_cplex(size_t, int, uint32_t, double, double, double, double);
+		void runILP_gurobi(size_t, int, uint32_t, double, double, double, double);
+		void runILPsc_cplex(size_t, uint32_t, uint32_t);
+		void runILPsc_gurobi(size_t, uint32_t, uint32_t);
 
 		void resetCounters();
+		void resetCounters_sc();
 		
 		static int symbolIdx[256];
 
 		static int rcIdx[128];
+
+		static char alphabet[4];
 };
 
 #endif

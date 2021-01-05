@@ -61,11 +61,12 @@ int main(int argc, char** argv) {
 	std::vector<std::string> fq_names;
 	FastaReader *main_fr = NULL;
 	FqReader *main_fqr = NULL;
-	int mode = -1;
+	int mode = -1, id_mode = 0;
 	bool debug_info = 0;
 	std::string idx_option;
 	std::string output;
 	float erate = 0.01;
+	std::vector<double> fine_parameters;
 	//int u = 0, hash_option = 32;
 	//std::string i1fn, i2fn;
 	for (int i = 1; i < argc; i++) {
@@ -83,7 +84,6 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			//i++;
 			idx_option = "unique";
 			continue;
 		}
@@ -92,7 +92,6 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			//i++;
 			idx_option = "doubly_unique";
 			continue;
 		}
@@ -101,7 +100,6 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			//i++;
 			idx_option = "both";
 			continue;
 		}
@@ -110,8 +108,7 @@ int main(int argc, char** argv) {
 				fprintf(stderr, "Option --read_cnts is only valid in mode QUERY.\n"); 
 				exit(EXIT_FAILURE);
 			}
-			i++;
-			//idx_option = "both";
+			id_mode = 1;
 			continue;
 		}
 		if (val == "--enable_ilp_display") {
@@ -425,12 +422,18 @@ int main(int argc, char** argv) {
 			main_fqr->loadIdx_p();
 			main_fqr->loadSmap();
 			main_fqr->nthreads = t;
-			if (!fq_names.empty())
-				main_fqr->queryFastq_p(fq_names);
-			else {
-				if (fq_dir != "")
-					main_fqr->queryFastq_p(fq_dir);
-				else {
+			if (!fq_names.empty()) {
+				if (id_mode == 0)
+					main_fqr->queryFastq_p(fq_names, 0);
+				else
+					main_fqr->queryFastq_sc(fq_names, 70);
+			} else {
+				if (fq_dir != "") {
+					if (id_mode == 0)
+						main_fqr->queryFastq_p(fq_dir, 0);
+					else
+						main_fqr->queryFastq_sc(fq_dir, 70);
+				} else {
 					fprintf(stderr, "Please specify at least one query file or directory.\n");
 					exit(EXIT_FAILURE);
 				}

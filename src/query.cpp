@@ -16,7 +16,7 @@
 #include <ilcplex/ilocplex.h>
 #endif
 #ifdef GUROBI
-#include <./gurobi_c++.h>
+#include <gurobi_c++.h>
 #endif
 
 #include "query.hpp"
@@ -191,92 +191,187 @@ void FqReader::getFqList(std::string &INDIR) {
 	}
 }
 
-void FqReader::queryFastq_p(std::string &INDIR) {
+void FqReader::queryFastq_p(std::string &INDIR, size_t min_l) {
 	getFqList(INDIR);		
 	prepallFastq();
-	readallFastq();
+	if (min_l == 0)
+		readallFastq();
+	else
+		readallFastq(min_l);
 	loadGenomeLength();
 	for (size_t fq_idx = 0; fq_idx < qfilenames.size(); fq_idx++) {
 		getFqnameWithoutDir(fq_idx);
 		if (nthreads == 1)
-			query64_p(100, fq_idx);
+			query64_p(fq_idx);
 		else
-			query64mt_p(100, fq_idx);
+			query64mt_p(fq_idx);
 		#ifdef CPLEX
-			runILP_cplex(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			runILP_cplex(fq_idx, 100, 10000, erate_, 100.0, 0.0001, 0.01);
 		#endif
 		#ifdef GUROBI
-			runILP_gurobi(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			runILP_gurobi(fq_idx, 100, 10000, erate_, 100.0, 0.0001, 0.01);
 		#endif
 		if (fq_idx < qfilenames.size() - 1)
 			resetCounters();
 	}
 }
 
-void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_) {		
+void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_, size_t min_l) {		
 	if (!qfilenames.empty()) {
 		qfilenames.clear();
 		fprintf(stderr, "Flushed existing file names.\n");
 	}
 	qfilenames = qfilenames_;
 	prepallFastq();
-	readallFastq();
+	if (min_l == 0)
+		readallFastq();
+	else
+		readallFastq(min_l);
 	loadGenomeLength();
 	for (size_t fq_idx = 0; fq_idx < qfilenames_.size(); fq_idx++) {
 		getFqnameWithoutDir(fq_idx);
 		if (nthreads == 1)
-			query64_p(100, fq_idx);
+			query64_p(fq_idx);
 		else
-			query64mt_p(100, fq_idx);
+			query64mt_p(fq_idx);
 		#ifdef CPLEX
-			runILP_cplex(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			runILP_cplex(fq_idx, 100, 10000, erate_, 100.0, 0.0001, 0.01);
 		#endif
 		#ifdef GUROBI
-			runILP_gurobi(fq_idx, 100, 100, 10000, erate_, 100.0, 0.0001, 0.01);
+			runILP_gurobi(fq_idx, 100, 10000, erate_, 100.0, 0.0001, 0.01);
 		#endif
 		if (fq_idx < qfilenames_.size() - 1)
 			resetCounters();
 	}
 }
 
+void FqReader::queryFastq_sc(std::string &INDIR, size_t min_l) {
+	getFqList(INDIR);		
+	prepallFastq();
+	if (min_l == 0)
+		readallFastq();
+	else
+		readallFastq(min_l);
+	for (size_t fq_idx = 0; fq_idx < qfilenames.size(); fq_idx++) {
+		getFqnameWithoutDir(fq_idx);
+		/* Num reads from single cells is small, multi-threading not implemented. */
+		if (nthreads > 1)
+			fprintf(stderr, "Single cell queries only support one thread.\n");
+		query64_sc(fq_idx);
+		#ifdef CPLEX
+			runILPsc_cplex(fq_idx, 10, 5);
+		#endif
+		#ifdef GUROBI
+			runILPsc_gurobi(fq_idx, 10, 5);
+		#endif
+		if (fq_idx < qfilenames.size() - 1)
+			resetCounters_sc();
+	}
+}
+
+void FqReader::queryFastq_sc(std::vector<std::string> &qfilenames_, size_t min_l) {		
+	if (!qfilenames.empty()) {
+		qfilenames.clear();
+		fprintf(stderr, "Flushed existing file names.\n");
+	}
+	qfilenames = qfilenames_;
+	prepallFastq();
+	if (min_l == 0)
+		readallFastq();
+	else
+		readallFastq(min_l);
+	loadGenomeLength();
+	for (size_t fq_idx = 0; fq_idx < qfilenames_.size(); fq_idx++) {
+		getFqnameWithoutDir(fq_idx);
+		/* Num reads from single cells is small, multi-threading not implemented. */
+		if (nthreads > 1)
+			fprintf(stderr, "Single cell queries only support one thread.\n");
+		query64_sc(fq_idx);
+		#ifdef CPLEX
+			runILPsc_cplex(fq_idx, 10, 5);
+		#endif
+		#ifdef GUROBI
+			runILPsc_gurobi(fq_idx, 10, 5);
+		#endif
+		if (fq_idx < qfilenames_.size() - 1)
+			resetCounters_sc();
+	}
+}
+
 void FqReader::readFastq(std::string &INFILE, size_t file_idx) { 
  	std::string bases, sp;
 	std::ifstream inputFile;
-	size_t rl;
+	size_t rl = 0, total_rl = 0;
+	srand(static_cast<unsigned int>(
+		std::chrono::high_resolution_clock::now().time_since_epoch().count()));
 
 	/* Read in fasta file. */ 
 	inputFile.open(INFILE);
 	while (std::getline(inputFile, bases)) {
 		std::getline(inputFile, bases);
 		rl = bases.length();
+		std::replace(bases.begin(), bases.end(), 'N', alphabet[rand() & 3]);
 		uint8_t *read = new uint8_t[rl];
 		strncpy((char*)read, bases.c_str(), rl);
-		//reads.push_back(read);
 		reads[file_idx].push_back(read);
-		//rlengths[file_idx].push_back((uint8_t) rl);
+		rlengths[file_idx].push_back((uint8_t) rl);
+		total_rl += rl;
 		std::getline(inputFile, bases);
 		std::getline(inputFile, bases);
 	}
 	
+	tlengths.push_back(total_rl);
 	inputFile.close();
-	//fprintf(stderr, "%lu\n", reads.size());
+	fprintf(stderr, "Loaded query file %s.\n", INFILE.c_str());
+}
+
+void FqReader::readFastq(std::string &INFILE, size_t file_idx, size_t min_l) { 
+ 	std::string bases, sp;
+	std::ifstream inputFile;
+	size_t rl = 0, total_rl = 0;
+	srand(static_cast<unsigned int>(
+		std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+
+	/* Read in fasta file. */ 
+	inputFile.open(INFILE);
+	while (std::getline(inputFile, bases)) {
+		std::getline(inputFile, bases);
+		rl = bases.length();
+		if (rl >= min_l) {
+			std::replace(bases.begin(), bases.end(), 'N', alphabet[rand() & 3]);
+			uint8_t *read = new uint8_t[rl];
+			strncpy((char*)read, bases.c_str(), rl);
+			reads[file_idx].push_back(read);
+			rlengths[file_idx].push_back((uint8_t) rl);
+			total_rl += rl;
+		}
+		std::getline(inputFile, bases);
+		std::getline(inputFile, bases);
+	}
+	
+	tlengths.push_back(total_rl);
+	inputFile.close();
+	fprintf(stderr, "Loaded query file %s.\n", INFILE.c_str());
 }
 
 void FqReader::prepallFastq() {
 	for (size_t i = 0; i < qfilenames.size(); i++) {
-		//nundet.push_back(0);
-		//nconf.push_back(0);
-		//genomes->read_cnts_u.push_back(0);
-		//genomes->read_cnts_d.push_back(0);
 		std::vector<uint8_t*> reads_i;
 		reads.push_back(reads_i);
+		std::vector<uint8_t> rlengths_i;
+		rlengths.push_back(rlengths_i);
 	}
-	fprintf(stderr, "Prepared reads from queries.\n");
+	//fprintf(stderr, "Prepared reads from queries.\n");
 }
 
 void FqReader::readallFastq() {
 	for (size_t i = 0; i < qfilenames.size(); i++)
 		readFastq(qfilenames[i], i);
+}
+
+void FqReader::readallFastq(size_t min_l) {
+	for (size_t i = 0; i < qfilenames.size(); i++)
+		readFastq(qfilenames[i], i, min_l);
 }
 
 void FqReader::getRC(uint8_t *dest, uint8_t *srcs, size_t length) {
@@ -290,8 +385,9 @@ void FqReader::getFqnameWithoutDir(size_t file_idx) {
 		getline(fn_stream, current_filename, '/');
 }
 
-void FqReader::query64_p(size_t rl, size_t file_idx) {
+void FqReader::query64_p(size_t file_idx) {
 	auto start = std::chrono::high_resolution_clock::now();
+	assert(hash_len_u == hash_len_d);
 	uint64_t hv = 0;
 	uint32_t hs = 0;
 	pleafNode *pln;
@@ -300,6 +396,7 @@ void FqReader::query64_p(size_t rl, size_t file_idx) {
 	std::set<uint32_t> rids;
 	std::set<std::pair<uint32_t, uint32_t>> rid_pairs;
 	uint8_t *rc_read = new uint8_t[max_rl];
+	size_t rl = 100;
 	size_t nrd = 0;
 
 	fprintf(stderr, "Querying %s.\n", current_filename.c_str());
@@ -308,6 +405,7 @@ void FqReader::query64_p(size_t rl, size_t file_idx) {
 		rid_pairs.clear();
 		pnodes.clear();
 		intersection.clear();
+		rl = rlengths[file_idx][nrd];
 
 		/* Forward strand. */
 		/* Query unique and doubly-unique substrings. */
@@ -479,10 +577,11 @@ void FqReader::query64_p(size_t rl, size_t file_idx) {
 	fprintf(stderr, "Time for query: %lu ms.\n", duration);
 }
 
-void FqReader::query64mt_p(size_t rl, size_t file_idx) {
+void FqReader::query64mt_p(size_t file_idx) {
 	auto start = std::chrono::high_resolution_clock::now();
+	assert(hash_len_u == hash_len_d);
 	//fprintf (stderr, "%d\t%d\n", nthreads, omp_get_num_threads());
-	//assert(nthreads == omp_get_num_threads());
+	assert(nthreads == omp_get_max_threads());
 	std::vector<uint8_t*> rc_read;
 	for (int thread_num = 0; thread_num < nthreads; thread_num++) {
 		uint8_t *new_read = new uint8_t[max_rl];
@@ -502,6 +601,7 @@ void FqReader::query64mt_p(size_t rl, size_t file_idx) {
 		std::set<uint32_t> rids;
 		std::set<std::pair<uint32_t, uint32_t>> rid_pairs;
 		uint8_t *read = reads[file_idx][read_idx];
+		size_t rl = rlengths[file_idx][read_idx];
 		const int thread_id = omp_get_thread_num();
 
 		/* Forward strand. */
@@ -718,12 +818,204 @@ void FqReader::query64mt_p(size_t rl, size_t file_idx) {
 	fprintf(stderr, "Time for query: %lu ms.\n", duration);
 }
 
+void FqReader::query64_sc(size_t file_idx) {
+	auto start = std::chrono::high_resolution_clock::now();
+	assert(hash_len_u == hash_len_d);
+	uint64_t hv = 0;
+	uint32_t hs = 0;
+	pleafNode *pln;
+	std::set<uint32_t> intersection;
+	std::set<pleafNode*> pnodes;
+	std::set<uint32_t> rids;
+	std::set<std::pair<uint32_t, uint32_t>> rid_pairs;
+	uint8_t *rc_read = new uint8_t[max_rl];
+	size_t rl = 100;
+	size_t nrd = 0;
+
+	fprintf(stderr, "Querying %s.\n", current_filename.c_str());
+	for (auto read : reads[file_idx]) {
+		rids.clear();
+		rid_pairs.clear();
+		pnodes.clear();
+		intersection.clear();
+		rl = rlengths[file_idx][nrd];
+
+		/* Forward strand. */
+		/* Query unique and doubly-unique substrings. */
+		hs = 2 * hash_len_u - 2;
+		hv = 0;
+		for (size_t i = 0; i < hash_len_u; i++)
+			hv = ((hv << 2) | symbolIdx[read[i]]);
+
+		for (size_t i = 0; i < rl - hash_len_u; i++) {
+			pln = ht_u->find64_p(hv, read + i + hash_len_u, rl - hash_len_u - i);
+			if (pln != NULL)
+				pnodes.insert(pln);		
+			pln = ht_d->find64_p(hv, read + i + hash_len_u, rl - hash_len_u - i);
+			if (pln != NULL)
+				pnodes.insert(pln);
+			hv = hv - ((uint64_t) symbolIdx[read[i]] << hs); /* Next hash. */
+			hv = ((hv << 2) | symbolIdx[read[i + hash_len_u]]);
+		}
+			
+		pln = ht_u->find64_p(hv, read, 0);
+		if (pln != NULL)
+			pnodes.insert(pln);
+		pln = ht_d->find64_p(hv, read, 0);
+		if (pln != NULL)
+			pnodes.insert(pln);
+
+		/* Reverse complement. */
+		getRC(rc_read, read, rl);
+
+		/* Query unique and doubly-unique substrings. */
+		hs = 2 * hash_len_u - 2;
+		hv = 0;
+		for (size_t i = 0; i < hash_len_u; i++)
+			hv = ((hv << 2) | symbolIdx[rc_read[i]]);
+
+		for (size_t i = 0; i < rl - hash_len_u; i++) {
+			pln = ht_u->find64_p(hv, rc_read + i + hash_len_u, rl - hash_len_u - i);
+			if (pln != NULL)
+				pnodes.insert(pln);
+			pln = ht_d->find64_p(hv, rc_read + i + hash_len_u, rl - hash_len_u - i);
+			if (pln != NULL)
+				pnodes.insert(pln);
+			hv = hv - ((uint64_t) symbolIdx[rc_read[i]] << hs); /* Next hash. */
+			hv = ((hv << 2) | symbolIdx[rc_read[i + hash_len_u]]);
+		}
+		pln = ht_u->find64_p(hv, rc_read, 0);
+		if (pln != NULL)
+			pnodes.insert(pln);
+		pln = ht_d->find64_p(hv, rc_read, 0);
+		if (pln != NULL)
+			pnodes.insert(pln);
+		
+		/* Record results. */
+		int i = 0;
+		for (auto pn : pnodes) {
+			if (pn->refID2 == 0)
+				rids.insert(pn->refID1);
+			else {
+				if (pn->refID1 < pn->refID2)
+					rid_pairs.insert(std::make_pair(pn->refID1, pn->refID2));
+				else
+					rid_pairs.insert(std::make_pair(pn->refID2, pn->refID1));
+			}
+		}
+		
+		switch (rid_pairs.size()) {
+			case 0:
+				if (rids.empty())
+					nundet++;
+				else {
+					if (rids.size() == 1)
+						for (auto rid : rids)
+							genomes[rid]->read_cnts_u++;
+					else
+						nconf++;
+				}
+				break;
+			case 1:
+				if (rids.empty()) {
+					for (auto rid_pair : rid_pairs) {
+						genomes[rid_pair.first]->read_cnts_d++;
+                                                genomes[rid_pair.second]->read_cnts_d++;
+						if (read_cnts_b.find(rid_pair) == read_cnts_b.end())
+							read_cnts_b[rid_pair] = 1;
+						else
+							read_cnts_b[rid_pair]++;
+					}
+				} else {
+					if (rids.size() > 1)
+						nconf++;
+					else {
+						for (auto rid : rids)
+							for (auto rid_pair : rid_pairs)
+								if (rid_pair.first != rid && rid_pair.second != rid) {
+									nconf++;
+								} else {
+									genomes[rid]->read_cnts_u++;
+									genomes[rid]->read_cnts_d++;
+								}
+					}
+				}
+				break;
+			default:
+				if (!rids.empty()) {
+					if (rids.size() > 1) {
+						nconf++;
+						break;
+					}
+					for (auto rid : rids) {
+						bool conf = 0;
+						for (auto rid_pair : rid_pairs)
+							if (rid_pair.first != rid && rid_pair.second != rid) {
+								conf = 1;
+								break;
+							}
+						if (conf)
+							nconf++;
+						else {
+							genomes[rid]->read_cnts_u++;
+							genomes[rid]->read_cnts_d++;
+						}
+					}
+				} else {
+					i = 0;
+					for (auto rid_pair : rid_pairs) {
+						if (i == 0) {	
+							intersection.insert(rid_pair.first);
+							intersection.insert(rid_pair.second);
+						} else {
+							std::vector<uint32_t> to_be_removed;
+							for (auto rid : intersection) {
+								if (rid_pair.first != rid && rid_pair.second != rid)
+									to_be_removed.push_back(rid);
+							}
+							for (auto rid : to_be_removed)
+								intersection.erase(rid);
+						}
+						i++;
+					}
+					switch (intersection.size()) {
+						case 0: 
+							nconf++;
+							break;
+						case 1:
+							for (auto rid : intersection) {
+								genomes[rid]->read_cnts_u++;
+								genomes[rid]->read_cnts_d++;
+							}
+							break;
+						default:
+							nconf++;
+							break;
+					}
+				}
+				break;
+		}
+		if (nrd++ % 100000 == 0)
+			fprintf(stderr, "Processed %lu reads.\r", nrd);
+	}
+
+	delete [] rc_read;
+	fprintf(stderr, "\nNumber of unlabeled reads: %lu.\n", nundet);
+	fprintf(stderr, "Number of reads with conflict labels: %lu.\n", nconf);
+	fprintf(stderr, "Completed query %s.\n", current_filename.c_str());
+
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for query: %lu ms.\n", duration);
+}
+
 #ifdef CPLEX
-void FqReader::runILP_cplex(size_t file_idx, int rl, int read_cnt_thres, uint32_t unique_thres, 
+void FqReader::runILP_cplex(size_t file_idx, int read_cnt_thres, uint32_t unique_thres, 
 			double erate, double max_cov, double resolution, double epsilon) {
 	auto start = std::chrono::high_resolution_clock::now();
 	
-	// Initialize cplex environment. 
+	uint32_t rl = tlengths[file_idx] / reads[file_idx].size();
+	// Initialize cplex environment.
 	IloEnv env;
 	IloModel model(env);
 	IloExpr objective(env);
@@ -927,14 +1219,136 @@ void FqReader::runILP_cplex(size_t file_idx, int rl, int read_cnt_thres, uint32_
 			(std::chrono::high_resolution_clock::now() - start).count();
 	fprintf(stderr, "Time for quantification through CPLEX: %lu ms.\n", duration);
 }
+
+void FqReader::runILPsc_cplex(size_t file_idx, uint32_t min_rc, uint32_t mind_rc) {
+	auto start = std::chrono::high_resolution_clock::now();
+	
+	size_t n_species = genomes.size() - 1;
+        exist = new int[n_species];
+        memset(exist, 2, sizeof(int) * n_species); 
+
+	// Initialize cplex environment.
+	IloEnv env;
+	IloModel model(env);
+	IloExpr objective(env);
+	IloBoolVarArray EXIST(env, n_species);
+	fprintf(stderr, "ILP environment in CPLEX initialized.\n");
+
+	size_t nv = 0;			
+	// Constraints: If the number of reads being assigned to a particular
+        //      genome g is more than MIN_RC, then EXIST[g] is forced to be 1;
+	// If the number of reads being assigned to a particular
+	//      genome g is less than MIND_RC, then EXIST[g] is forced to be 0;	
+	for (size_t i = 1; i <= n_species; i++) {
+		if (genomes[i]->read_cnts_u >= min_rc) {
+			model.add(EXIST[i - 1] == 1);
+			exist[i - 1] = 1;
+		} else {
+			if (genomes[i]->read_cnts_d < mind_rc) {
+				model.add(EXIST[i - 1] == 0);
+				exist[i - 1] = 0;
+			}
+		}
+	}
+	for (size_t i = 0; i < n_species; i++) {
+		if (exist[i] == 1)
+			nv++;
+		if (exist[i] == 2) {
+			nv++;
+			for (auto rc : read_cnts_b) {
+				std::pair<uint32_t, uint32_t> rid_pair = rc.first;
+				if ((i + 1 == rid_pair.first || i + 1 == rid_pair.second) && rc.second >= mind_rc)
+					model.add(EXIST[rid_pair.first - 1] + EXIST[rid_pair.second - 1] > 0);
+			}
+		}
+	}
+	fprintf(stderr, "Constructed ILP constraints for genome identification.\n");
+
+	// Objective: Minimize the total number of genomes.
+	for (size_t i = 0; i < n_species; i++)
+		objective += EXIST[i];
+	model.add(IloMinimize(env, objective));
+	fprintf(stderr, "Constructed the objective function.\n");
+
+	FILE *fout;
+        if (file_idx == 0) {
+                fout = fopen(OUTPUTFILE.c_str(), "w");
+		fprintf(fout, "QUERY/TAXID\t");
+		for (size_t i = 1; i <= n_species; i++) {
+			if (i < n_species)
+				fprintf(fout, "%u\t", genomes[i]->taxID);
+			else
+				fprintf(fout, "%u\n", genomes[i]->taxID);
+		}
+        } else
+                fout = fopen(OUTPUTFILE.c_str(), "a");
+
+	try {
+		IloCplex cplex(model);
+		if (nthreads > 1)
+			cplex.setParam(IloCplex::IntParam::Threads, nthreads);
+		cplex.setParam(IloCplex::NumParam::TiLim, 3600);
+		cplex.setParam(IloCplex::NumParam::SolnPoolAGap, 0.0);
+		if (!debug_display)
+			cplex.setOut(env.getNullStream());
+
+		if (cplex.solve()) {
+			std::vector<uint32_t> cplex_solution;
+			for (size_t i = 0; i < n_species; i++) {
+				bool ei = cplex.getValue(EXIST[i]);
+				if (ei != 0)
+					cplex_solution.push_back(i + 1);
+			}
+			
+			/* Redistribute read count according to ILP solution. */
+			for (auto rc : read_cnts_b) {
+				uint32_t rid1 = rc.first.first;
+				uint32_t rid2 = rc.first.second;
+				std::vector<uint32_t>::iterator it1;
+				std::vector<uint32_t>::iterator it2;
+				it1 = find(cplex_solution.begin(), cplex_solution.end(), rid1);
+				it2 = find(cplex_solution.begin(), cplex_solution.end(), rid2);
+				if (it1 != cplex_solution.end() && it2 != cplex_solution.end()) {
+					uint64_t cnt_inc = rc.second;
+					if ((cnt_inc & 1ULL) != 0ULL)
+						cnt_inc += 1;
+					genomes[rid1]->read_cnts_u += (cnt_inc >> 1);
+					genomes[rid2]->read_cnts_u += (cnt_inc >> 1);
+				}
+				if (it1 != cplex_solution.end() && it2 == cplex_solution.end())
+					genomes[rid1]->read_cnts_u += rc.second;
+				if (it1 == cplex_solution.end() && it2 != cplex_solution.end())
+					genomes[rid2]->read_cnts_u += rc.second;
+			}
+
+			fprintf(fout, "%s\t", current_filename.c_str());
+			for (size_t i = 1; i <= n_species; i++) {
+				if (i < n_species)
+					fprintf(fout, "%lu\t", genomes[i]->read_cnts_u);
+				else
+					fprintf(fout, "%lu\n", genomes[i]->read_cnts_u);
+			}
+		}
+
+		fclose(fout);
+	} catch (IloException &ex) {}
+
+	if (exist != NULL)
+		delete [] exist;
+	
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for identification through CPLEX: %lu ms.\n\n", duration);
+}
 #endif
 
 #ifdef GUROBI
-void FqReader::runILP_gurobi(size_t file_idx, int rl, int read_cnt_thres, uint32_t unique_thres, 
+void FqReader::runILP_gurobi(size_t file_idx, int read_cnt_thres, uint32_t unique_thres, 
 			double erate, double max_cov, double resolution, double epsilon) {
 	auto start = std::chrono::high_resolution_clock::now();
 	
-	// Initialize cplex environment.
+	uint32_t rl = tlengths[file_idx] / reads[file_idx].size();
+	// Initialize gurobi environment.
 	GRBEnv *env = new GRBEnv();
 	GRBModel model = GRBModel(*env);
 	GRBQuadExpr objective = 0;
@@ -1134,8 +1548,136 @@ void FqReader::runILP_gurobi(size_t file_idx, int rl, int read_cnt_thres, uint32
 
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 			(std::chrono::high_resolution_clock::now() - start).count();
-	fprintf(stderr, "Time for quantification through CPLEX: %lu ms.\n", duration);
+	fprintf(stderr, "Time for quantification through GUROBI: %lu ms.\n", duration);
 }
+
+void FqReader::runILPsc_gurobi(size_t file_idx, uint32_t min_rc, uint32_t mind_rc) {
+	auto start = std::chrono::high_resolution_clock::now();
+	
+	size_t n_species = genomes.size() - 1;
+        exist = new int[n_species];
+        memset(exist, 2, sizeof(int) * n_species);
+
+        // Initialize gurobi environment.
+	GRBEnv *env = new GRBEnv();
+	GRBModel model = GRBModel(*env);
+	GRBLinExpr objective = 0;
+	GRBVar *EXIST = model.addVars(n_species, GRB_BINARY);
+	fprintf(stderr, "ILP environment in GUROBI initialized.\n");
+
+	size_t nv = 0;
+	// Constraints: If the number of reads being assigned to a particular
+	//      genome g is more than MIN_RC, then EXIST[g] is forced to be 1;
+	// If the number of reads being assigned to a particular
+	//      genome g is less than MIND_RC, then EXIST[g] is forced to be 0;
+	for (size_t i = 1; i <= n_species; i++) {
+		if (genomes[i]->read_cnts_u >= min_rc) {
+			model.addConstr(EXIST[i - 1] == 1);
+			exist[i - 1] = 1;
+		} else {
+			if (genomes[i]->read_cnts_d < mind_rc) {
+				model.addConstr(EXIST[i - 1] == 0);
+				exist[i - 1] = 0;
+			}
+		}
+        }
+        for (size_t i = 0; i < n_species; i++) {
+		if (exist[i] == 1)
+			nv++;
+		if (exist[i] == 2) {
+			nv++;
+			for (auto rc : read_cnts_b) {
+				std::pair<uint32_t, uint32_t> rid_pair = rc.first;
+				if ((i + 1 == rid_pair.first || i + 1 == rid_pair.second) && rc.second >= mind_rc)
+					model.addConstr(EXIST[rid_pair.first - 1] + EXIST[rid_pair.second - 1] >= 1);
+			}
+		}
+	}
+	fprintf(stderr, "Constructed ILP constraints for genome identification.\n");
+	
+	// Objective: Minimize the total number of genomes.
+	for (size_t i = 0; i < n_species; i++)
+		objective += EXIST[i];
+	model.setObjective(objective, GRB_MINIMIZE);
+        fprintf(stderr, "Constructed the objective function.\n");
+
+	FILE *fout;
+        if (file_idx == 0) {
+                fout = fopen(OUTPUTFILE.c_str(), "w");
+		fprintf(fout, "QUERY/TAXID\t");
+		for (size_t i = 1; i <= n_species; i++) {
+			if (i < n_species)
+				fprintf(fout, "%u\t", genomes[i]->taxID);
+			else
+				fprintf(fout, "%u\n", genomes[i]->taxID);
+		}
+        } else
+                fout = fopen(OUTPUTFILE.c_str(), "a");
+
+	try {
+		if (nthreads > 1)
+			model.set(GRB_IntParam_Threads, nthreads);
+		model.set("TimeLimit", "3600.0");
+		model.set("MIPGapAbs", "0.0");
+		if (!debug_display)
+			model.set(GRB_IntParam_OutputFlag, 0);
+
+		model.optimize();
+		if (GRB_OPTIMAL == 2) {
+			std::vector<uint32_t> grb_solution;
+			for (size_t i = 0; i < n_species; i++) {
+				bool ei = (EXIST[i].get(GRB_DoubleAttr_X) > 0.9);
+				if (ei != 0)
+					grb_solution.push_back(i + 1);
+			}
+			
+			/* Redistribute read count according to ILP solution. */
+			for (auto rc : read_cnts_b) {
+				uint32_t rid1 = rc.first.first;
+				uint32_t rid2 = rc.first.second;
+				std::vector<uint32_t>::iterator it1;
+				std::vector<uint32_t>::iterator it2;
+				it1 = find(grb_solution.begin(), grb_solution.end(), rid1);
+				it2 = find(grb_solution.begin(), grb_solution.end(), rid2);
+				if (it1 != grb_solution.end() && it2 != grb_solution.end()) {
+					uint64_t cnt_inc = rc.second;
+					if ((cnt_inc & 1ULL) != 0ULL)
+						cnt_inc += 1;
+					genomes[rid1]->read_cnts_u += (cnt_inc >> 1);
+					genomes[rid2]->read_cnts_u += (cnt_inc >> 1);
+				}
+				if (it1 != grb_solution.end() && it2 == grb_solution.end())
+					genomes[rid1]->read_cnts_u += rc.second;
+				if (it1 == grb_solution.end() && it2 != grb_solution.end())
+					genomes[rid2]->read_cnts_u += rc.second;
+			}
+
+			fprintf(fout, "%s\t", current_filename.c_str());
+			for (size_t i = 1; i <= n_species; i++) {
+				if (i < n_species)
+					fprintf(fout, "%lu\t", genomes[i]->read_cnts_u);
+				else
+					fprintf(fout, "%lu\n", genomes[i]->read_cnts_u);
+			}
+		}
+
+		fclose(fout);
+	} catch (GRBException e) {
+		fprintf(stderr, "%s\n", e.getMessage().c_str());
+		abort();
+	}
+
+	delete [] EXIST;
+	if (env)
+		delete env;
+	if (exist != NULL)
+		delete [] exist;
+	
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for quantification through GUROBI: %lu ms.\n", duration);
+}
+
 #endif
 
 void FqReader::resetCounters() {
@@ -1155,6 +1697,24 @@ void FqReader::resetCounters() {
 		for (auto pn : ht_d->map_sp[i])
 			pn->rcount = 0;
 	}
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
+			(std::chrono::high_resolution_clock::now() - start).count();
+	fprintf(stderr, "Time for resetting counters: %lu ms.\n", duration);
+}
+
+void FqReader::resetCounters_sc() {
+	auto start = std::chrono::high_resolution_clock::now();
+	nconf = 0;
+	nundet = 0;
+
+	size_t n_species = genomes.size() - 1;
+	for (size_t i = 1; i <= n_species; i++) {
+ 		genomes[i]->read_cnts_u = 0;
+		genomes[i]->read_cnts_d = 0;
+	}
+	if (read_cnts_b.size() > 0)
+		 read_cnts_b.clear();
+
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 			(std::chrono::high_resolution_clock::now() - start).count();
 	fprintf(stderr, "Time for resetting counters: %lu ms.\n", duration);
@@ -1182,4 +1742,6 @@ int FqReader::rcIdx[128] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, \
 -1, 67, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 65, -1, -1, -1, -1, -1, \
 -1, -1, -1, -1, -1, -1, -1, 84, -1, 71, -1, -1, -1, 67, -1, -1, -1, -1, -1, -1, \
 -1, -1, -1, -1, -1, -1, 65, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+
+char FqReader::alphabet[4] = {'A', 'C', 'G', 'T'};
 
