@@ -10,14 +10,18 @@ CAMMiQ is a software tool for microbial identification and quantification. Speci
 In addition, you'll need the following components to compile the sources:
 * https://github.com/jlabeit/parallel-divsufsort which constructs suffix arrays in a parallelized and lightweight fashion.
 * https://github.com/martinus/robin-hood-hashing which is a faster and more memory efficient alternative of STL unordered_map.
-* [IBM ILOG CPLEX Optimization Studio](https://www.ibm.com/products/ilog-cplex-optimization-studio) - CAMMiQ requires its c++ interface for solving a (mixed) integer linear program (ILP) to figure out the most likely composition of genomes in the mixture based on the distribution of querying reads. 
+* [IBM ILOG CPLEX Optimization Studio](https://www.ibm.com/products/ilog-cplex-optimization-studio) or [Gurobi Optimizer](https://www.gurobi.com/products/gurobi-optimizer/) - CAMMiQ requires either c++ interface for solving a (mixed) integer linear program (ILP) to figure out the most likely composition of genomes in the mixture based on the distribution of querying reads. 
 
-To install CAMMiQ, just clone our repository and run the script install_CAMMiQ.sh we have prepared - it will automatically download the related repos above and compile their codes. The only exception is, you'll have to first download and install the latest version (e.g., 12.9.0) of IBM ILOG CPLEX Optimization Studio by yourself.  
+To install CAMMiQ, just clone our repository and run the script install_CAMMiQ.sh we have prepared - it will automatically download the related repos above and compile their codes. The only exception is, you'll have to first download and install the latest version of IBM ILOG CPLEX Optimization Studio (e.g., 12.9.0) or Gurobi Optimizer (e.g., 9.0.0) by yourself.  
 ```
 git clone https://github.com/algo-cancer/CAMMiQ
 ./install_CAMMiQ.sh --cplex-dir <CPLEX_DIR>
 ```
-where ```<CPLEX_DIR>``` should be replaced with the directory of your **CPLEX_Studio**.
+or
+```
+./install_CAMMiQ.sh --gurobi-dir <GUROBI_DIR> --gurobi-version <GUROBI_VERSION>
+```
+where ```<CPLEX_DIR>``` should be replaced with the **absolute** directory of your **CPLEX_Studio** if you use CPLEX; if you use Gurobi, ```<GUROBI_DIR>``` should be replaced with the **absolute** directory of **linux64** (under the Gurobi directory) and additionally you'll need to tell the compiler the version of your Gurobi Optimizer (usually both ```a.b``` and ```a.b.c``` formats will work).
 
 ### How do I use CAMMiQ?
 To begin using CAMMiQ, you will first need to index the input genomes. 
