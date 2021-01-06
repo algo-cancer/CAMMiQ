@@ -73,10 +73,19 @@ On the other hand, ```[parameters]``` include the following list of (possibly ma
 Example usage:
 ```
 cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -f genome_map1.txt -D /data/fasta_dir/ -t 32 
-/* h should not exceed k */
-cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -h 25 -f genome_map2.out -D /data/fasta_dir/ -t 64
+```
+The above command line instruction builds doubly-unique substrings (encoded in ```index_d.bin2```) from the genomes listed in ```genome_map1.txt``` stored under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 50]; with 32 threads; and to support query reads of length (roughly) 100. Note that -h was not specified so CAMMiQ takes its default value 26.
+```
+cammiq --build --unique -k 26 -L 120 -Lmax 75 -h 25 -f genome_map2.out -D /data/fasta_dir/ -t 64
+```
+The above command line instruction builds unique substrings (encoded in ```index_u.bin1```) from the genomes listed in ```genome_map2.txt``` stored again under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 75]; with 64 threads; and to support query reads of length (roughly) 120. Note that -h was set to 25, which does not exceed the maximum allowed value ```k=26```.
+```
 cammiq --build --both -k 21 -L 75 -Lmax 75 -h 21 -f bacteria1.fa bacteria2.fa bacteria3.fa
 ```
+The above command line instruction builds both unique and doubly substrings from the 3 genomes ```bacteria1.fa```, ```bacteria2.fa``` and ```bacteria3.fa```; with substring lengths ranging from [21, 75]; to support query reads of length (roughly) 75. Usually there are much more reference genomes; as a result, listing them all as ```-f``` parameters is not advocated, though supported by CAMMiQ. And since ```-t``` was not specified, CAMMiQ will attempt to use the maximum number of threads according to openmp. 
+
+#### Is there a default database supported by CAMMiQ?
+Yes. Similar to many other products, 
 
 #### How do I query the collection of (metagenomic) reads?
 Similarly, you'll need to run ```./cammiq --query [options] [parameters]``` from command line, where ```[options]``` include
@@ -94,7 +103,7 @@ Similarly, you'll need to run ```./cammiq --query [options] [parameters]``` from
   
     Note that the output file name can be specified with ```-o``` parameter. 
   
-  * ```-doubly_unique``` **Optional**. Only valid when ```--read_cnts``` is specified. CAMMiQ will resolve the ambiguous read counts brought by doubly-unique substrings, and assign each of those reads that only contain doubly-unique substrings from two distinct taxa to one specific taxon. 
+  * ```--doubly_unique``` **Optional**. Only valid when ```--read_cnts``` is specified. CAMMiQ will resolve the ambiguous read counts brought by doubly-unique substrings, and assign each of those reads that only contain doubly-unique substrings from two distinct taxa to one specific taxon. 
 
 and ```[parameters]``` include the following list of (possibly mandatory) parameters.
 * ```-f <MAP_FILE>``` **Mandatory**. You should use the same ```<MAP_FILE>``` when building the index in your queries. **Attention:** CAMMiQ is not in charge of verifying the format or correctness (meaning that you use exactly the same file for building the index and querying) of a ```<MAP_FILE>```. When your input ```<MAP_FILE>``` for querying is different from what you used for building the index, some potential "*undefined behavior*" could happen when running CAMMiQ.
@@ -127,12 +136,33 @@ and ```[parameters]``` include the following list of (possibly mandatory) parame
 * ```-h <int>|<int1 int2>``` **Optional (but need special attention)**. Same as what is described above in the ```--build``` option, ```-h``` can take in one or two integer values. You don't need to speicify ```-h``` in ```--query``` option since it's encoded in the corredponding index (```*.bin1``` and ```*.bin2```) files - but if something is found here and not matching the value encoded in the index files, CAMMiQ will raise an error.
 * ```-t <int>``` **Optional**. Number of threads used during CAMMiQ queries. Same as what is described above in the ```--build``` option. Note that CAMMiQ query has two phases: in the first phase of assigning reads to one or two genomes, the default number of threads is 1; however, in the second phase CAMMiQ will use IBM ILOG CPLEX Optimization Studio to produce metagenomic quantification results (or read count results if ```--read_cnts``` is specified), which, by default, is again 'auto-threaded' (i.e. attempts to use all available CPUs on a computer). If your Linux mahcine has more than 32 CPUs, then by default 32 threads will be used.
 
+Additionally, you can also modify the following list of parameters.
+
+* ```--enable_ilp_display```, which allows the ILP solvers (IBM ILOG CPLEX Optimization Studio or Gurobi Optimizer) to print their debug information.
+* ```--read_length_filter <int>``` CAMMiQ will discard reads shorter than the specified value in ```<QUERY_FILE(S)>```. By default, CAMMiQ will keep all reads in the queries. 
+However, users need to pay attention to the possible existence of reads shorter than the hash length specified in ```-h``` (or those built in CAMMiQ indices); in such case CAMMiQ could raise an error. 
+* ```--read_cnt_thres <int>``` This is a firm threshold to claim the existence of a certain genome: if it contains sufficient number of unique substrings (or unique *L*-mers, specified by ```--easy_to_identify_thres``` below), then CAMMiQ will apply both the integer value specified here and the floating point value specified in ```--ilp_alpha``` (see below) - those genomes having less than these numbers of reads assigned to will not be output by CAMMiQ; if not (i.e., for those genomes that do not pass ```--easy_to_identify_thres```) then CAMMiQ will only apply the value given in ```--ilp_alpha``` to filter out non-existing genomes. The default value of ```--read_cnt_thres``` is 100.
+* ```--easy_to_identify_thres <int>``` When a genome contains more unique *L*-mers than the value specified here, it is considered "easy to identify" and the firm ```--read_cnt_thres``` filter will be applied (see above). The default value is 10000.
+* ```--ilp_epsilon <float>``` Default value is 0.01. If CAMMiQ does not give any *feasible* solution for its quantification results, then users should attempt to increase this value for generating at least one (more relaxed) feasible solution.
+* ```--ilp_alpha <float>``` **Important**. CAMMiQ's relative read count filter (Intuitively, it can be considered as the "resolution" of CAMMiQ). If a genome has less than ```ilp_alpha * number of unique/doubly-unique L mers``` reads being assigned to, then it will be filtered out in the quantification process. The default value of ```--ilp_alpha``` is 0.0001. See CAMMiQ paper https://www.biorxiv.org/content/10.1101/2020.06.12.149245v2 for further details.
+* ```--max_depth <float>``` Maximum allowed coverage per genome. The default value is 100.0.
+* ```--unique_read_cnt_thres <int>``` A special parameter for ```--read_cnts (--doubly-unique)``` queries; it's mainly designed for single cell queries. In this case when a genome has sufficient number of reads assigned to (i.e., pass the threshold), it must be included in CAMMiQ's identification output.
+* ```--doubly_unique_read_cnt_thres <int>``` A special parameter for ```--read_cnts (--doubly-unique)``` queries; it's also designed for single cell queries. When a genome has less than ```--unique_read_cnt_thres``` unique reads and less than ```--doubly_unique_read_cnt_thres``` doubly-unique reads (that is, these reads are ambiguously assigned to the corresponding genome), it must be excluded/filtered out in CAMMiQ's identification output.
+
 Example usage:
 ```
-cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -f genome_map1.txt -D /data/fasta_dir/ -t 32 
-/* h should not exceed k */
-cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -h 25 -f genome_map2.out -D /data/fasta_dir/ -t 64
-cammiq --build --both -k 21 -L 75 -Lmax 75 -h 21 -f bacteria1.fa bacteria2.fa bacteria3.fa
+cammiq --query --read_cnts -h 26 26 -f genome_map1.out -i index_u.bin1 index_d.bin2 -Q /data/fastqs/ --read_length_filter 70 -o cammiq_identification.txt
+cammiq --query --read_cnts --doubly_unique -h 26 26 -f genome_map1.out -i index_u.bin1 index_d.bin2 -Q /data/fastqs/ -o cammiq_identification.out --unique_read_cnt_thres 20 --doubly_unique_read_cnt_thres 10 -t 16
+```
+The first instruction queries against ```index_u.bin1``` and ```index_d.bin2``` the reads from all fastq files under the directory ```/data/fastqs/```; with each fastq forming a distinct query; with read length less than 70 being discarded; with the number of reads uniquely assigned to the genomes in ```genome_map1.out``` (which must correspond to the index files) written into ```cammiq_identification.txt```, for future usage.
+
+The second instruction queries the same set of reads, but 
+the genomes listed in ```genome_map1.txt``` stored under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 50]; with 32 threads; and to support query reads of length (roughly) 100. Note that -h was not specified so CAMMiQ takes its default value 26.
+
+```
+cammiq --query -f genome_map2.out -i index_u_test.bin1 index_d_test.bin2 -q query1.fastq query2.fastq -o cammiq_quantification.out -t 8
+cammiq --query -h 31 -f genome_map3.out -i index_u.bin1 index_d.bin2 -Q /data/fastqs/ -o gurobi_solutions.out -t 8 --ilp_alpha 0.001
+cammiq --query -h 25 25 -f genome_map4.out -i index_u.bin1 index_d.bin2 -Q /data/test_fastqs/ -o cplex_solutions.out -t 8 --enable_ilp_display --ilp_alpha 0.001 
 ```
 
 #### How do I query single cell RNA-seq reads?
