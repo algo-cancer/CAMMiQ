@@ -85,11 +85,17 @@ cammiq --build --both -k 21 -L 75 -Lmax 75 -h 21 -f bacteria1.fa bacteria2.fa ba
 The above command line instruction builds both unique and doubly substrings from the 3 genomes ```bacteria1.fa```, ```bacteria2.fa``` and ```bacteria3.fa```; with substring lengths ranging from [21, 75]; to support query reads of length (roughly) 75. Usually there are much more reference genomes; as a result, listing them all as ```-f``` parameters is not advocated, though supported by CAMMiQ. And since ```-t``` was not specified, CAMMiQ will attempt to use the maximum number of threads according to openmp. 
 
 #### Is there a default database supported by CAMMiQ?
-Yes. Similar to many other products, 
+Yes. Similar to many other products, CAMMiQ supports selected complete genomes from **the latest version of** NCBI's RefSeq database, which can be easily downloaded through the python script ```CAMMiQ-download```. The command line options of ```CAMMiQ-download``` include
+
+* ```--dir <DATABASE_PATH>``` The directory to maintain the downloaded genomes. Default path is the current directory ```./```.
+* ```--taxa bacteria|viral|archaea|all``` The selected collection of complete genomes from RefSeq to be downloaded. Currently there are four options supported by CAMMiQ: users can choose to download the list (determined by ```--sample``` option) of complete bacterial, viral, archaeal genomes or all three categories from the *latest* version of RefSeq database. 
+* ```--sample none|taxid|species``` The option ```none``` keeps all genomes; ```taxid``` keeps one representative genome for each taxonomic ID; ```species``` keeps one representative genome for each species level taxonomic ID (these taxonomic IDs are based on the latest assembly summary files maintained by RefSeq). Note that if ```taxid``` or ```species``` is specified, genomes marked as "representative genome" or "reference genome" (again in the assembly summary files) have the priority; if no such genomes are found with in each (species level) taxID, then a random genome from this taxID will be kept.
+* ```--unzip``` This option decompress the ```*.gz``` files from RefSeq into ```*.fna``` files.
+* ```--quiet``` Disable the output produced by wget to trace the download progress.
 
 #### How do I query the collection of (metagenomic) reads?
 Similarly, you'll need to run ```./cammiq --query [options] [parameters]``` from command line, where ```[options]``` include
-  * ```--read_cnts``` **Optional**. If ```--read_cnts``` is specified, then CAMMiQ will not produce its standard output (see below ```-o``` option). Instead, CAMMiQ outputs a non-negative (tab-delimited) matrix where each row corresponds to a query (fastq file); each column corresponds to an **NCBI taxonomic ID** (attention: not a genome ID!); each entry gives the number of reads in a given query that CAMMiQ assigned uniquely to the corresponding taxon.
+  * ```--read_cnts``` **Optional**. If ```--read_cnts``` is specified, then CAMMiQ will not produce its standard output (see below ```-o``` option). Instead, CAMMiQ outputs a non-negative (tab-delimited) matrix where each row corresponds to a query (fastq file); each column corresponds to an **NCBI taxonomic ID** (attention: not a genome ID!); each entry gives the number of reads in a given query that CAMMiQ assigned uniquely to the corresponding taxon. ```--read_cnts``` queries correspond to "Type I" queries in the paper.
   
     Here is an example output when CAMMiQ finds ```--read_cnts``` in a command line:
   
@@ -103,7 +109,7 @@ Similarly, you'll need to run ```./cammiq --query [options] [parameters]``` from
   
     Note that the output file name can be specified with ```-o``` parameter. 
   
-  * ```--doubly_unique``` **Optional**. Only valid when ```--read_cnts``` is specified. CAMMiQ will resolve the ambiguous read counts brought by doubly-unique substrings, and assign each of those reads that only contain doubly-unique substrings from two distinct taxa to one specific taxon. 
+  * ```--doubly_unique``` **Optional**. Only valid when ```--read_cnts``` is specified. CAMMiQ will resolve the ambiguous read counts brought by doubly-unique substrings, and assign each of those reads that only contain doubly-unique substrings from two distinct taxa to one specific taxon. ```--doubly_unique``` queries correspond to "Type II" queries in the paper.
 
 and ```[parameters]``` include the following list of (possibly mandatory) parameters.
 * ```-f <MAP_FILE>``` **Mandatory**. You should use the same ```<MAP_FILE>``` when building the index in your queries. **Attention:** CAMMiQ is not in charge of verifying the format or correctness (meaning that you use exactly the same file for building the index and querying) of a ```<MAP_FILE>```. When your input ```<MAP_FILE>``` for querying is different from what you used for building the index, some potential "*undefined behavior*" could happen when running CAMMiQ.
@@ -156,8 +162,7 @@ cammiq --query --read_cnts --doubly_unique -h 26 26 -f genome_map1.out -i index_
 ```
 The first instruction queries against ```index_u.bin1``` and ```index_d.bin2``` the reads from all fastq files under the directory ```/data/fastqs/```; with each fastq forming a distinct query; with read length less than 70 being discarded; with the number of reads uniquely assigned to the genomes in ```genome_map1.out``` (which must correspond to the index files) written into ```cammiq_identification.txt```, for future usage.
 
-The second instruction queries the same set of reads, but 
-the genomes listed in ```genome_map1.txt``` stored under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 50]; with 32 threads; and to support query reads of length (roughly) 100. Note that -h was not specified so CAMMiQ takes its default value 26.
+The second instruction queries the same set of reads, but this time CAMMiQ considers the reads ambiguously assigned to two genomes and resolves such ambiguity through ILP solvers (IBM ILOG CPLEX Optimization Studio or Gurobi Optimizer), with parameter ```--unique_read_cnt_thres``` set to 20 and ```--doubly_unique_read_cnt_thres``` set to 10. The maximum allowed number of threads for ILP solvers is set to 16.
 
 ```
 cammiq --query -f genome_map2.out -i index_u_test.bin1 index_d_test.bin2 -q query1.fastq query2.fastq -o cammiq_quantification.out -t 8
@@ -166,5 +171,7 @@ cammiq --query -h 25 25 -f genome_map4.out -i index_u.bin1 index_d.bin2 -Q /data
 ```
 
 #### How do I query single cell RNA-seq reads?
+
+
 
 ### What is the expected computational cost of CAMMiQ?
