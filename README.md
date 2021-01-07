@@ -70,7 +70,7 @@ On the other hand, ```[parameters]``` include the following list of (possibly ma
   * Note b: ```-h``` parameter can take in one or two integer values. With one input value ```h0```, CAMMiQ will set both hash lengths (for the collection of unique substrings and for the collection of doubly-unique substrings) ```h0```; with two input values ```h1``` and ```h2```, CAMMiQ will set the hash length for unique substrings ```h1``` and the hash length for doubly-unique substrings ```h2```.
 * ```-t <int>``` **Optional**. Number of threads used during CAMMiQ's index construction. Note that CAMMiQ uses OpenMP during its index construction, which, by default, is 'auto-threaded' (i.e. attempts to use all available CPUs on a computer).
 
-Example usage:
+**Example usage**:
 ```
 cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -f genome_map1.txt -D /data/fasta_dir/ -t 32 
 ```
@@ -89,13 +89,13 @@ Yes. Similar to many other products, CAMMiQ supports selected complete genomes f
 
 * ```--dir <DATABASE_PATH>``` The directory to maintain the downloaded genomes. Default path is the current directory ```./```.
 * ```--taxa bacteria|viral|archaea|all``` The selected collection of complete genomes from RefSeq to be downloaded. Currently there are four options supported by CAMMiQ: users can choose to download the list (determined by ```--sample``` option) of complete bacterial, viral, archaeal genomes or all three categories from the *latest* version of RefSeq database. 
-* ```--sample none|taxid|species``` The option ```none``` keeps all genomes; ```taxid``` keeps one representative genome for each taxonomic ID; ```species``` keeps one representative genome for each species level taxonomic ID (these taxonomic IDs are based on the latest assembly summary files maintained by RefSeq). Note that if ```taxid``` or ```species``` is specified, genomes marked as "representative genome" or "reference genome" (again in the assembly summary files) have the priority; if no such genomes are found with in each (species level) taxID, then a random genome from this taxID will be kept.
-* ```--unzip``` This option decompress the ```*.gz``` files from RefSeq into ```*.fna``` files.
+* ```--sample none|taxid|species``` The option ```none``` keeps all genomes; ```taxid``` keeps one representative genome for each taxonomic ID; ```species``` keeps one representative genome for each species level taxonomic ID (these taxonomic IDs are based on the latest assembly summary files maintained by RefSeq). Note that if ```taxid``` or ```species``` is specified, genomes marked as "representative genome" or "reference genome" (again in the assembly summary files) have the priority to be kept; if no such genomes are found with in each (species level) taxID, then a random genome from this taxID will be kept.
+* ```--unzip``` This option decompresses the ```*.gz``` files from RefSeq into ```*.fna``` files.
 * ```--quiet``` Disable the output produced by wget to trace the download progress.
 
 #### How do I query the collection of (metagenomic) reads?
 Similarly, you'll need to run ```./cammiq --query [options] [parameters]``` from command line, where ```[options]``` include
-  * ```--read_cnts``` **Optional**. If ```--read_cnts``` is specified, then CAMMiQ will not produce its standard output (see below ```-o``` option). Instead, CAMMiQ outputs a non-negative (tab-delimited) matrix where each row corresponds to a query (fastq file); each column corresponds to an **NCBI taxonomic ID** (attention: not a genome ID!); each entry gives the number of reads in a given query that CAMMiQ assigned uniquely to the corresponding taxon. ```--read_cnts``` queries correspond to "Type I" queries in the paper.
+  * ```--read_cnts``` **Optional**. If ```--read_cnts``` is specified, then CAMMiQ will not produce its standard output (see below ```-o``` option). Instead, CAMMiQ outputs a non-negative (tab-delimited) matrix where each row corresponds to a query (fastq file); each column corresponds to an **NCBI taxonomic ID** (attention: not a genome ID!); each entry gives the number of reads in a given query that CAMMiQ assigned uniquely to the corresponding taxon. ```--read_cnts``` queries correspond to the simplest "Type I" queries in the paper.
   
     Here is an example output when CAMMiQ finds ```--read_cnts``` in a command line:
   
@@ -155,10 +155,10 @@ However, users need to pay attention to the possible existence of reads shorter 
 * ```--unique_read_cnt_thres <int>``` A special parameter for ```--read_cnts (--doubly-unique)``` queries; it's mainly designed for single cell queries. In this case when a genome has sufficient number of reads assigned to (i.e., pass the threshold), it must be included in CAMMiQ's identification output.
 * ```--doubly_unique_read_cnt_thres <int>``` A special parameter for ```--read_cnts (--doubly-unique)``` queries; it's also designed for single cell queries. When a genome has less than ```--unique_read_cnt_thres``` unique reads and less than ```--doubly_unique_read_cnt_thres``` doubly-unique reads (that is, these reads are ambiguously assigned to the corresponding genome), it must be excluded/filtered out in CAMMiQ's identification output.
 
-Example usage:
+**Example usage**:
 ```
 cammiq --query --read_cnts -h 26 26 -f genome_map1.out -i index_u.bin1 index_d.bin2 -Q /data/fastqs/ --read_length_filter 70 -o cammiq_identification.txt
-cammiq --query --read_cnts --doubly_unique -h 26 26 -f genome_map1.out -i index_u.bin1 index_d.bin2 -Q /data/fastqs/ -o cammiq_identification.out --unique_read_cnt_thres 20 --doubly_unique_read_cnt_thres 10 -t 16
+cammiq --query --read_cnts --doubly_unique -h 26 26 -f genome_map1.out -i index_u.bin1 index_d.bin2 -Q /data/fastqs/ -o cammiq_identification.txt --unique_read_cnt_thres 20 --doubly_unique_read_cnt_thres 10 -t 16
 ```
 The first instruction queries against ```index_u.bin1``` and ```index_d.bin2``` the reads from all fastq files under the directory ```/data/fastqs/```; with each fastq forming a distinct query; with read length less than 70 being discarded; with the number of reads uniquely assigned to the genomes in ```genome_map1.out``` (which must correspond to the index files) written into ```cammiq_identification.txt```, for future usage.
 
@@ -167,11 +167,17 @@ The second instruction queries the same set of reads, but this time CAMMiQ consi
 ```
 cammiq --query -f genome_map2.out -i index_u_test.bin1 index_d_test.bin2 -q query1.fastq query2.fastq -o cammiq_quantification.out -t 8
 cammiq --query -h 31 -f genome_map3.out -i index_u.bin1 index_d.bin2 -Q /data/fastqs/ -o gurobi_solutions.out -t 8 --ilp_alpha 0.001
-cammiq --query -h 25 25 -f genome_map4.out -i index_u.bin1 index_d.bin2 -Q /data/test_fastqs/ -o cplex_solutions.out -t 8 --enable_ilp_display --ilp_alpha 0.001 
+cammiq --query -h 25 25 -f genome_map4.out -i index_u.bin1 index_d.bin2 -Q /data/test_fastqs/ -o cplex_solutions.out -t 8 --enable_ilp_display --ilp_alpha 0.001 --read_cnt_thres 50 --ilp_epsilon 0.1
 ```
+The third instruction queries against ```index_u_test.bin1``` and ```index_d_test.bin2``` the reads from two given fastq files ```query1.fastq``` and ```query2.fastq```; with each fastq forming a distinct query; with the corresponding genomes (of course, within the list of ```genome_map2.out```) and their relative bundances written into ```cammiq_quantification.out```; with 8 threads both for querying the index and using ILP to quantify the abundances.
+
+The fourth instruction queries against ```index_u.bin1``` and ```index_d.bin2``` the reads from all fastq files under the above directory ```/data/fastqs/```; with each fastq forming a distinct query; with the corresponding genomes (within the list of ```genome_map3.out```) and their relative bundances written into ```gurobi_solutions.out```; with again 8 threads both for querying the index and using ILP to quantify the abundances; with parameter ```--ilp_alpha``` set to ```0.001``` (this correspond to part of our results shown in the paper). Note that with ```-h 31``` set both hash lengths to ```31``` - in this case if the hash lengths stored in the indices do not match, CAMMiQ will report an error.
+
+The fifth instruction queries against ```index_u.bin1``` and ```index_d.bin2``` the same set of fastqs; with each fastq forming a distinct query; with the corresponding genomes (within the list of ```genome_map4.out```) and their relative bundances written into ```cplex_solutions.out```; with CPLEX (ILP solver) debug information enabled on the screen printing output; and with multiple parameters tuned. Same attention needed to be paid on specified hash lengths.
 
 #### How do I query single cell RNA-seq reads?
-
-
+Since RNA-seq reads usually do not follow (roughly) uniform distribution across the entire genome, users are suggested to apply ```--read_cnts``` and/or ```--doubly_unique``` queries in command line options, which will output the number of reads identified though CAMMiQ indices which are assigned to each genome in the index database. Multiple parameters including e.g., ```--read_length_filter```; ```--(doubly_)unique_read_cnt_thres``` can be tuned to control CAMMiQ's output. 
 
 ### What is the expected computational cost of CAMMiQ?
+Since both index construction and querying of CAMMiQ run in a reasonable amount time (usually a few hours with multiple threads for index construction and minutes for querying a few million reads; additionally CAMMiQ may require a few minutes to load the indices into main memory when you query the first fastq file), the main bottleneck comes from main memory usage. Here is a quick estimation of the memory needed for index construction: suppose your total size of input genomes is ```N```, then CAMMiQ will need to reserve up to ```37 * N``` Bytes (plus the memory for maintaining the index structures) of RAM in total during its index construction step (plus certain amount of disk space). For querying, suppose the total index size for ```*.bin1/*.bin1.aux``` and ```*.bin2/*.bin2.aux``` files is ```IDX_SIZE```, and the total size of query files is ```QRY_SIZE```, then CAMMiQ will need roughly ```8 * IDX_SIZE + QRY_SIZE``` Bytes of RAM in total during its querying step, plus the memory required by the ILP solvers.
+
