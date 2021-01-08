@@ -115,8 +115,8 @@ class FqReader {
 
 		void queryFastq_p(std::string&, size_t, std::vector<double>&);
 		void queryFastq_p(std::vector<std::string>&, size_t, std::vector<double>&);
-		void queryFastq_sc(std::string&, size_t, std::vector<double>&);
-		void queryFastq_sc(std::vector<std::string>&, size_t, std::vector<double>&);
+		void queryFastq_sc(int, std::string&, size_t, std::vector<double>&);
+		void queryFastq_sc(int, std::vector<std::string>&, size_t, std::vector<double>&);
 
 		void getRC(uint8_t*, uint8_t*, size_t);
 
@@ -124,6 +124,8 @@ class FqReader {
 		void runILP_gurobi(size_t, int, uint32_t, double, double, double, double);
 		void runILPsc_cplex(size_t, uint32_t, uint32_t);
 		void runILPsc_gurobi(size_t, uint32_t, uint32_t);
+
+		void outputUniqueCnts(size_t);
 
 		void resetCounters();
 		void resetCounters_sc();

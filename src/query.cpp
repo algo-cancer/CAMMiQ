@@ -263,7 +263,8 @@ void FqReader::queryFastq_p(std::vector<std::string> &qfilenames_, size_t min_l,
 	}
 }
 
-void FqReader::queryFastq_sc(std::string &INDIR, size_t min_l, std::vector<double> &additional_params) {
+void FqReader::queryFastq_sc(int unique_only, std::string &INDIR, size_t min_l, 
+				std::vector<double> &additional_params) {
 	uint32_t t1 = (additional_params[0] > 0.0) ? (uint32_t)round(additional_params[0]) : 10,
 		t2 = (additional_params[1] > 0.0) ? (uint32_t)round(additional_params[1]) : 5;
 
@@ -279,18 +280,21 @@ void FqReader::queryFastq_sc(std::string &INDIR, size_t min_l, std::vector<doubl
 		if (nthreads > 1)
 			fprintf(stderr, "Single cell queries only support one thread.\n");
 		query64_sc(fq_idx);
-		#ifdef CPLEX
-			runILPsc_cplex(fq_idx, t1, t2);
-		#endif
-		#ifdef GUROBI
-			runILPsc_gurobi(fq_idx, t1, t2);
-		#endif
+		if (unique_only > 1) {
+			#ifdef CPLEX
+				runILPsc_cplex(fq_idx, t1, t2);
+			#endif
+			#ifdef GUROBI
+				runILPsc_gurobi(fq_idx, t1, t2);
+			#endif
+		} else
+			outputUniqueCnts(fq_idx);
 		if (fq_idx < qfilenames.size() - 1)
 			resetCounters_sc();
 	}
 }
 
-void FqReader::queryFastq_sc(std::vector<std::string> &qfilenames_, size_t min_l,
+void FqReader::queryFastq_sc(int unique_only, std::vector<std::string> &qfilenames_, size_t min_l,
 				std::vector<double> &additional_params) {		
 	if (!qfilenames.empty()) {
 		qfilenames.clear();
@@ -313,12 +317,15 @@ void FqReader::queryFastq_sc(std::vector<std::string> &qfilenames_, size_t min_l
 		if (nthreads > 1)
 			fprintf(stderr, "Single cell queries only support one thread.\n");
 		query64_sc(fq_idx);
-		#ifdef CPLEX
-			runILPsc_cplex(fq_idx, t1, t2);
-		#endif
-		#ifdef GUROBI
-			runILPsc_gurobi(fq_idx, t1, t2);
-		#endif
+		if (unique_only > 1) {
+			#ifdef CPLEX
+				runILPsc_cplex(fq_idx, t1, t2);
+			#endif
+			#ifdef GUROBI
+				runILPsc_gurobi(fq_idx, t1, t2);
+			#endif
+		} else
+			outputUniqueCnts(fq_idx);
 		if (fq_idx < qfilenames_.size() - 1)
 			resetCounters_sc();
 	}
@@ -1702,6 +1709,30 @@ void FqReader::runILPsc_gurobi(size_t file_idx, uint32_t min_rc, uint32_t mind_r
 	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
 			(std::chrono::high_resolution_clock::now() - start).count();
 	fprintf(stderr, "Time for quantification through GUROBI: %lu ms.\n", duration);
+}
+
+void FqReader::outputUniqueCnts(size_t file_idx) {
+	size_t n_species = genomes.size() - 1;
+	FILE *fout;
+        if (file_idx == 0) {
+                fout = fopen(OUTPUTFILE.c_str(), "w");
+		fprintf(fout, "QUERY/TAXID\t");
+		for (size_t i = 1; i <= n_species; i++) {
+			if (i < n_species)
+				fprintf(fout, "%u\t", genomes[i]->taxID);
+			else
+				fprintf(fout, "%u\n", genomes[i]->taxID);
+		}
+        } else
+                fout = fopen(OUTPUTFILE.c_str(), "a");
+	fprintf(fout, "%s\t", current_filename.c_str());
+	for (size_t i = 1; i <= n_species; i++) {
+		if (i < n_species)
+			fprintf(fout, "%lu\t", genomes[i]->read_cnts_u);
+		else
+			fprintf(fout, "%lu\n", genomes[i]->read_cnts_u);
+	}
+	fclose(fout);
 }
 
 #endif

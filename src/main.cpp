@@ -89,11 +89,16 @@ int main(int argc, char** argv) {
 			continue;
 		}
 		if (val == "--doubly_unique") {
-			if (mode > 0) {
-				fprintf(stderr, "Option --unique is only valid in mode BUILD.\n"); 
-				exit(EXIT_FAILURE);
+			if (mode == 0)
+				idx_option = "doubly_unique";
+			else {
+				if (id_mode == 0) {
+					fprintf(stderr, "Option --doubly_unique is only valid in --read_cnts queries.\n"); 
+					exit(EXIT_FAILURE);
+				} else
+					id_mode = 2;
 			}
-			idx_option = "doubly_unique";
+			
 			continue;
 		}
 		if (val == "--both") {
@@ -522,13 +527,13 @@ int main(int argc, char** argv) {
 				if (id_mode == 0)
 					main_fqr->queryFastq_p(fq_names, min_rl, fine_parameters);
 				else
-					main_fqr->queryFastq_sc(fq_names, min_rl, fine_parameters_);
+					main_fqr->queryFastq_sc(id_mode, fq_names, min_rl, fine_parameters_);
 			} else {
 				if (fq_dir != "") {
 					if (id_mode == 0)
 						main_fqr->queryFastq_p(fq_dir, min_rl, fine_parameters);
 					else
-						main_fqr->queryFastq_sc(fq_dir, min_rl, fine_parameters_);
+						main_fqr->queryFastq_sc(id_mode, fq_dir, min_rl, fine_parameters_);
 				} else {
 					fprintf(stderr, "Please specify at least one query file or directory.\n");
 					exit(EXIT_FAILURE);
