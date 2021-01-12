@@ -278,7 +278,6 @@ void SuffixArray::computeGnrLcpArray32(uint64_t n, uint16_t el, bool debug) {
 	uint64_t nextd = 0, begin = 0, end = n - 1;
 	for (; GSA32[end] == GSA32[end - 1]; end--);
 
-	//#pragma omp parallel for
 	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
 		for (; GSA32[i + nextd] == GSA32[i + nextd + 1]; nextd++);
 		for (int64_t j = nextd; j >= 0; j--) {
@@ -293,8 +292,7 @@ void SuffixArray::computeGnrLcpArray32(uint64_t n, uint16_t el, bool debug) {
 	nextd = 0;
 	for (end = 0; GSA32[end] == GSA32[end + 1]; end++);
 	begin = n - 1;
-	
-	//#pragma omp parallel for
+
 	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
 		for (; GSA32[i - nextd] == GSA32[i - nextd - 1]; nextd++);
 		for (int64_t j = nextd; j >= 0; j--) {
@@ -316,14 +314,23 @@ void SuffixArray::computeGnrLcpArray16_d(uint64_t n, uint16_t el, uint16_t ulmax
 	uint64_t nextd = 0, begin = 0, end = n - 1;
 	for (; GSA16[end] == GSA16[end - 1]; end--);
 	memset(GSA16_, 0, sizeof(uint16_t) * (n + 1));
-	
-	//#pragma omp parallel for
-	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
-		for (; GSA16[i + nextd] == GSA16[i + nextd + 1]; nextd++);
-		for (int64_t j = nextd; j >= 0; j--) {
-			minlcp = std::min(minlcp, LCP[i + j + 1]);
-			LCP0[i + j] = minlcp;
-			GSA16_[SA[i + j]] = GSA16[i + nextd + 1];
+
+	#pragma omp parallel private(minlcp, nextd)
+	{
+		int threadnum = omp_get_thread_num(), 
+			numthreads = omp_get_num_threads();
+		uint64_t l = n * threadnum / numthreads, 
+			r = std::min(end, n * (threadnum + 1) / numthreads);
+		
+		if (l > begin)
+			for (; GSA16[l] == GSA16[l - 1]; l--);
+		for (uint64_t i = l; i < r; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+			for (; GSA16[i + nextd] == GSA16[i + nextd + 1]; nextd++);
+			for (int64_t j = nextd; j >= 0; j--) {
+				minlcp = std::min(minlcp, LCP[i + j + 1]);
+				LCP0[i + j] = minlcp;
+				GSA16_[SA[i + j]] = GSA16[i + nextd + 1];
+			}
 		}
 	}
 
@@ -335,41 +342,53 @@ void SuffixArray::computeGnrLcpArray16_d(uint64_t n, uint16_t el, uint16_t ulmax
 	for (end = 0; GSA16[end] == GSA16[end + 1]; end++);
 	for (; GSA16[end] == GSA16[end + 1]; end++);
 
-	//#pragma omp parallel for
-	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
-		for (; GSA16[i - nextd] == GSA16[i - nextd - 1]; nextd++);
-		for (int64_t j = nextd; j >= 0; j--) {
-			minlcp = std::min(minlcp, LCP[i - j]);
-			if (LCP0[i - j] < minlcp) {
-				uint16_t min2lcp = UINT16_MAX;
-				uint64_t i_ = i - nextd - 1;
-				for (; GSA16[i_] == GSA16[i_ - 1]; i_--)	
-					 min2lcp = std::min(min2lcp, LCP[i_]);
-				min2lcp = std::min(min2lcp, LCP[i_]);
-				min2lcp = std::min(min2lcp, minlcp);
-				LCP0[i - j] = std::max(LCP0[i - j], min2lcp);
-				LCP0[i - j] = std::max(LCP0[i - j], el);
-				GSA16_[SA[i - j]] = GSA16[i - nextd - 1];
-				if (LCP0[i - j] >= minlcp)
-					LCP0[i - j] = ulmax + 2;
-			} else {
-				if (LCP0[i - j] > minlcp) {
+	#pragma omp parallel private(minlcp, nextd)
+	{
+		int threadnum = omp_get_thread_num(), 
+			numthreads = omp_get_num_threads();
+		uint64_t l = std::max(end, n * threadnum / numthreads), 
+			r = n * (threadnum + 1) / numthreads;
+		if (r == n)
+			r = begin;
+		else
+			if (GSA16[r] == GSA16[r + 1])
+				for (; GSA16[r] == GSA16[r - 1]; r--);
+
+		for (uint64_t i = r; i > l; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+			for (; GSA16[i - nextd] == GSA16[i - nextd - 1]; nextd++);
+			for (int64_t j = nextd; j >= 0; j--) {
+				minlcp = std::min(minlcp, LCP[i - j]);
+				if (LCP0[i - j] < minlcp) {
 					uint16_t min2lcp = UINT16_MAX;
-					uint64_t i_ = i;
-					for (; GSA16[i_] == GSA16[i_ + 1] && i_ < n; i_++)
-						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-					min2lcp = std::min(min2lcp, LCP[i_ + 1]); 
-					for (i_ = i_ + 1; GSA16[i_] == GSA16[i_ + 1] && i_ < n; i_++)
-						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-					min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-					uint16_t lcp0 = std::max(minlcp, min2lcp);
-					lcp0 = std::max(lcp0, el);
-					if (lcp0 >= LCP0[i - j])
+					uint64_t i_ = i - nextd - 1;
+					for (; GSA16[i_] == GSA16[i_ - 1]; i_--)	
+						min2lcp = std::min(min2lcp, LCP[i_]);
+					min2lcp = std::min(min2lcp, LCP[i_]);
+					min2lcp = std::min(min2lcp, minlcp);
+					LCP0[i - j] = std::max(LCP0[i - j], min2lcp);
+					LCP0[i - j] = std::max(LCP0[i - j], el);
+					GSA16_[SA[i - j]] = GSA16[i - nextd - 1];
+					if (LCP0[i - j] >= minlcp)
 						LCP0[i - j] = ulmax + 2;
-					else
-						LCP0[i - j] = lcp0;
-				} else
-					LCP0[i - j] = ulmax + 2;
+				} else {
+					if (LCP0[i - j] > minlcp) {
+						uint16_t min2lcp = UINT16_MAX;
+						uint64_t i_ = i;
+						for (; GSA16[i_] == GSA16[i_ + 1] && i_ < n; i_++)
+							min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+						min2lcp = std::min(min2lcp, LCP[i_ + 1]); 
+						for (i_ = i_ + 1; GSA16[i_] == GSA16[i_ + 1] && i_ < n; i_++)
+							min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+						uint16_t lcp0 = std::max(minlcp, min2lcp);
+						lcp0 = std::max(lcp0, el);
+						if (lcp0 >= LCP0[i - j])
+							LCP0[i - j] = ulmax + 2;
+						else
+							LCP0[i - j] = lcp0;
+					} else
+						LCP0[i - j] = ulmax + 2;
+				}
 			}
 		}
 	}
@@ -388,13 +407,22 @@ void SuffixArray::computeGnrLcpArray32_d(uint64_t n, uint16_t el, uint16_t ulmax
 	for (; GSA32[end] == GSA32[end - 1]; end--);
 	memset(GSA32_, 0, sizeof(uint32_t) * (n + 2));
 	
-	//#pragma omp parallel for
-	for (uint64_t i = begin; i < end; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
-		for (; GSA32[i + nextd] == GSA32[i + nextd + 1]; nextd++);
-		for (int64_t j = nextd; j >= 0; j--) {
-			minlcp = std::min(minlcp, LCP[i + j + 1]);
-			LCP0[i + j] = minlcp;
-			GSA32_[SA[i + j]] = GSA32[i + nextd + 1];
+	#pragma omp parallel private(minlcp, nextd)
+	{
+		int threadnum = omp_get_thread_num(), 
+			numthreads = omp_get_num_threads();
+		uint64_t l = n * threadnum / numthreads, 
+			r = std::min(end, n * (threadnum + 1) / numthreads);
+
+		if (l > begin)
+			for (; GSA32[l] == GSA32[l - 1]; l--);
+		for (uint64_t i = l; i < r; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+			for (; GSA32[i + nextd] == GSA32[i + nextd + 1]; nextd++);
+			for (int64_t j = nextd; j >= 0; j--) {
+				minlcp = std::min(minlcp, LCP[i + j + 1]);
+				LCP0[i + j] = minlcp;
+				GSA32_[SA[i + j]] = GSA32[i + nextd + 1];
+			}
 		}
 	}
 
@@ -406,41 +434,53 @@ void SuffixArray::computeGnrLcpArray32_d(uint64_t n, uint16_t el, uint16_t ulmax
 	for (end = 0; GSA32[end] == GSA32[end + 1]; end++);
 	for (; GSA32[end] == GSA32[end + 1]; end++);
 
-	//#pragma omp parallel for
-	for (uint64_t i = begin; i > end; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
-		for (; GSA32[i - nextd] == GSA32[i - nextd - 1]; nextd++);
-		for (int64_t j = nextd; j >= 0; j--) {
-			minlcp = std::min(minlcp, LCP[i - j]);
-			if (LCP0[i - j] < minlcp) {
-				uint16_t min2lcp = UINT16_MAX;
-				uint64_t i_ = i - nextd - 1;
-				for (; GSA32[i_] == GSA32[i_ - 1]; i_--)	
-					 min2lcp = std::min(min2lcp, LCP[i_]);
-				min2lcp = std::min(min2lcp, LCP[i_]);
-				min2lcp = std::min(min2lcp, minlcp);
-				LCP0[i - j] = std::max(LCP0[i - j], min2lcp);
-				LCP0[i - j] = std::max(LCP0[i - j], el);
-				GSA32_[SA[i - j]] = GSA32[i - nextd - 1];
-				if (LCP0[i - j] >= minlcp)
-					LCP0[i - j] = ulmax + 2;
-			} else {
-				if (LCP0[i - j] > minlcp) {
+	#pragma omp parallel private(minlcp, nextd)
+	{
+		int threadnum = omp_get_thread_num(), 
+			numthreads = omp_get_num_threads();
+		uint64_t l = std::max(end, n * threadnum / numthreads), 
+			r = n * (threadnum + 1) / numthreads;
+		if (r == n)
+			r = begin;
+		else
+			if (GSA32[r] == GSA32[r + 1])
+				for (; GSA32[r] == GSA32[r - 1]; r--);
+
+		for (uint64_t i = r; i > l; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
+			for (; GSA32[i - nextd] == GSA32[i - nextd - 1]; nextd++);
+			for (int64_t j = nextd; j >= 0; j--) {
+				minlcp = std::min(minlcp, LCP[i - j]);
+				if (LCP0[i - j] < minlcp) {
 					uint16_t min2lcp = UINT16_MAX;
-					uint64_t i_ = i;
-					for (; GSA32[i_] == GSA32[i_ + 1] && i_ < n; i_++)
-						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-					min2lcp = std::min(min2lcp, LCP[i_ + 1]); 
-					for (i_ = i_ + 1; GSA32[i_] == GSA32[i_ + 1] && i_ < n; i_++)
-						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-					min2lcp = std::min(min2lcp, LCP[i_ + 1]);
-					uint16_t lcp0 = std::max(minlcp, min2lcp);
-					lcp0 = std::max(lcp0, el);
-					if (lcp0 >= LCP0[i - j])
+					uint64_t i_ = i - nextd - 1;
+					for (; GSA32[i_] == GSA32[i_ - 1]; i_--)	
+						min2lcp = std::min(min2lcp, LCP[i_]);
+					min2lcp = std::min(min2lcp, LCP[i_]);
+					min2lcp = std::min(min2lcp, minlcp);
+					LCP0[i - j] = std::max(LCP0[i - j], min2lcp);
+					LCP0[i - j] = std::max(LCP0[i - j], el);
+					GSA32_[SA[i - j]] = GSA32[i - nextd - 1];
+					if (LCP0[i - j] >= minlcp)
 						LCP0[i - j] = ulmax + 2;
-					else
-						LCP0[i - j] = lcp0;
-				} else
-					LCP0[i - j] = ulmax + 2;
+				} else {
+					if (LCP0[i - j] > minlcp) {
+						uint16_t min2lcp = UINT16_MAX;
+						uint64_t i_ = i;
+						for (; GSA32[i_] == GSA32[i_ + 1] && i_ < n; i_++)
+							min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+						min2lcp = std::min(min2lcp, LCP[i_ + 1]); 
+						for (i_ = i_ + 1; GSA32[i_] == GSA32[i_ + 1] && i_ < n; i_++)
+							min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+						min2lcp = std::min(min2lcp, LCP[i_ + 1]);
+						uint16_t lcp0 = std::max(minlcp, min2lcp);
+						lcp0 = std::max(lcp0, el);
+						if (lcp0 >= LCP0[i - j])
+							LCP0[i - j] = ulmax + 2;
+						else
+							LCP0[i - j] = lcp0;
+					} else
+						LCP0[i - j] = ulmax + 2;
+				}
 			}
 		}
 	}
@@ -574,30 +614,32 @@ void SuffixArray::computeOCC16_d(uint64_t n, uint16_t ulmax, bool debug) {
 	uint64_t begin = n - 1, end = 0;
 	for (; GSA16[end] == GSA16[end + 1]; end++);
 	for (; GSA16[end] == GSA16[end + 1]; end++);
-	//#pragma omp parallel for
+	
+	#pragma omp parallel for private(minlcp)
 	for (uint64_t i = begin; i > end; i--) {
 		if (LCP0[i] <= ulmax) {
-			occ[SA[i]] = 1;
+			uint64_t SA_i = SA[i];
+			occ[SA_i] = 1;
 			minlcp = UINT16_MAX;
 			for (uint64_t j = 0; (i - j > end) && ((GSA16[i - j - 1] == GSA16[i]) 
-					|| (GSA16[i - j - 1] == GSA16_[SA[i]])); j++) {
+					|| (GSA16[i - j - 1] == GSA16_[SA_i])); j++) {
 				minlcp = std::min(minlcp, LCP[i - j]);
 				if (minlcp > LCP0[i]) {
 					if (GSA16[i - j - 1] == GSA16[i])
-						occ[SA[i]]++;
-					if (GSA16[i - j - 1] == GSA16_[SA[i]])
-						occ2[SA[i]]++;
+						occ[SA_i]++;
+					if (GSA16[i - j - 1] == GSA16_[SA_i])
+						occ2[SA_i]++;
 				}
 			}
 			minlcp = UINT16_MAX;
 			for (uint64_t j = 0; (i + j <= begin) && ((GSA16[i + j + 1] == GSA16[i]) 
-					|| (GSA16[i + j + 1] == GSA16_[SA[i]])); j++) {
+					|| (GSA16[i + j + 1] == GSA16_[SA_i])); j++) {
 				minlcp = std::min(minlcp, LCP[i + j + 1]);
 				if (minlcp > LCP0[i]) {
 					if (GSA16[i + j + 1] == GSA16[i])
-						occ[SA[i]]++;
-					if (GSA16[i + j + 1] == GSA16_[SA[i]])
-						occ2[SA[i]]++;				
+						occ[SA_i]++;
+					if (GSA16[i + j + 1] == GSA16_[SA_i])
+						occ2[SA_i]++;				
 				}
 			}
 		}
@@ -621,30 +663,32 @@ void SuffixArray::computeOCC32_d(uint64_t n, uint16_t ulmax, bool debug) {
 	uint64_t begin = n - 1, end = 0;
 	for (end = 0; GSA32[end] == GSA32[end + 1]; end++);
 	for (; GSA32[end] == GSA32[end + 1]; end++);
-	#pragma omp parallel for
+	
+	#pragma omp parallel for private(minlcp)
 	for (uint64_t i = begin; i > end; i--) {
 		if (LCP0[i] <= ulmax) {
-			occ[SA[i]] = 1;
+			uint64_t SA_i = SA[i];
+			occ[SA_i] = 1;
 			minlcp = UINT16_MAX;
 			for (uint64_t j = 0; (i - j > end) && ((GSA32[i - j - 1] == GSA32[i]) 
-					|| (GSA32[i - j - 1] == GSA32_[SA[i]])); j++) {
+					|| (GSA32[i - j - 1] == GSA32_[SA_i])); j++) {
 				minlcp = std::min(minlcp, LCP[i - j]);
 				if (minlcp > LCP0[i]) {
 					if (GSA32[i - j - 1] == GSA32[i])
-						occ[SA[i]]++;
-					if (GSA32[i - j - 1] == GSA32_[SA[i]])
-						occ2[SA[i]]++;
+						occ[SA_i]++;
+					if (GSA32[i - j - 1] == GSA32_[SA_i])
+						occ2[SA_i]++;
 				}
 			}
 			minlcp = UINT16_MAX;
 			for (uint64_t j = 0; (i + j <= begin) && ((GSA32[i + j + 1] == GSA32[i]) 
-					|| (GSA32[i + j + 1] == GSA32_[SA[i]])); j++) {
+					|| (GSA32[i + j + 1] == GSA32_[SA_i])); j++) {
 				minlcp = std::min(minlcp, LCP[i + j + 1]);
 				if (minlcp > LCP0[i]) {
 					if (GSA32[i + j + 1] == GSA32[i])
-						occ[SA[i]]++;
-					if (GSA32[i + j + 1] == GSA32_[SA[i]])
-						occ2[SA[i]]++;				
+						occ[SA_i]++;
+					if (GSA32[i + j + 1] == GSA32_[SA_i])
+						occ2[SA_i]++;				
 				}
 			}
 		}
@@ -772,24 +816,3 @@ uint16_t* SuffixArray::run(uint8_t* s, std::vector<uint64_t> &spos,
 	return LCP;
 }
 
-/*
-	#pragma omp parallel
-	{
-		int threadnum = omp_get_thread_num(), 
-			numthreads = omp_get_num_threads();
-		uint64_t l = std::max(end, n * threadnum / numthreads), 
-			r = n * (threadnum + 1) / numthreads;
-		if (r == n)
-			r = begin;
-		else
-			for (; GSA16[r] == GSA16[r + 1]; r++);
-
-		for (uint64_t i = r; i > l; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
-			for (; GSA16[i - nextd] == GSA16[i - nextd - 1]; nextd++);
-			for (int64_t j = nextd; j >= 0; j--) {
-				minlcp = std::min(minlcp, LCP[i - j]);
-				LCP0[i - j] = std::max(LCP0[i - j], minlcp);
-			}
-		}
-	}
-*/
