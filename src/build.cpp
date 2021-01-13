@@ -659,18 +659,14 @@ void FastaReader::computeIndex(int mode) {
 	fprintf(stderr, "Time for organizing index: %lu ms.\n", duration);
 
 	if (mode == 1) {
-		std::string index_file = "index_u_kir.bin1";
-		//if (HASH_LEN_ < 16)
-		//	hasht->encodeIdx32(index_file, 0);
-		//else
-			hasht->encodeIdx64(index_file, 0);
-		FILE *lcFile = fopen("./unique_lmer_count_u_kir.out", "w");
-		fprintf(lcFile, "REFID\tCNT\n");
+		hasht->encodeIdx64(IDXFILEU, 0);
+		FILE *lcFile = fopen((IDXDIR + "unique_lmer_count_u.out").c_str(), "w");
+		//fprintf(lcFile, "REFID\tCNT\n");
 		for (uint32_t i = 0; i < M_; i++)
 			fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
 		fclose (lcFile);
-		FILE *glFile = fopen("./genome_lengths_kir.out", "w");
-		fprintf(glFile, "REFID\tLENGTH\n");
+		FILE *glFile = fopen((IDXDIR + "genome_lengths.out").c_str(), "w");
+		//fprintf(glFile, "REFID\tLENGTH\n");
 		uint32_t gl = 0, j = 0;
 		for (uint32_t i = 0; i < C_; i++) {
 			gl += (contig_pos[i] - ((i == 0) ? 0 : contig_pos[i - 1]) - 4);
@@ -683,18 +679,14 @@ void FastaReader::computeIndex(int mode) {
 		fclose (glFile);
 	}
 	if (mode == 2) {
-		std::string index_file = "index_d_kir.bin2";
-		//if (HASH_LEN_ < 16)
-		//	hasht->encodeIdx32_d(index_file, 0);
-		//else
-			hasht->encodeIdx64_d(index_file, 0);
-		FILE *lcFile = fopen("./unique_lmer_count_d_kir.out", "w");
-		fprintf(lcFile, "REFID\tCNT\n");
+		hasht->encodeIdx64_d(IDXFILED, 0);
+		FILE *lcFile = fopen((IDXDIR + "unique_lmer_count_d.out").c_str(), "w");
+		//fprintf(lcFile, "REFID\tCNT\n");
 		for (uint32_t i = 0; i < M_; i++)
 			fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
 		fclose (lcFile);
-		FILE *glFile = fopen("./genome_lengths_kir.out", "w");
-		fprintf(glFile, "REFID\tLENGTH\n");
+		FILE *glFile = fopen((IDXDIR + "genome_lengths.out").c_str(), "w");
+		//fprintf(glFile, "REFID\tLENGTH\n");
 		uint32_t gl = 0, j = 0;
 		for (uint32_t i = 0; i < C_; i++) {
 			gl += (contig_pos[i] - ((i == 0) ? 0 : contig_pos[i - 1]) - 4);
@@ -707,13 +699,9 @@ void FastaReader::computeIndex(int mode) {
 		fclose (glFile);
 	}
 	if (mode == 3) {
-		std::string index_file = "index_d_kir.bin2";
-		//if (HASH_LEN_ < 16)
-		//	hasht->encodeIdx32_d(index_file, 0);
-		//else
-			hasht->encodeIdx64_d(index_file, 0);
-		FILE *pFile = fopen("./unique_lmer_count_d_kir.out", "w");
-		fprintf(pFile, "REFID\tCNT\n");
+		hasht->encodeIdx64_d(IDXFILED, 0);
+		FILE *pFile = fopen((IDXDIR + "unique_lmer_count_d.out").c_str(), "w");
+		//fprintf(pFile, "REFID\tCNT\n");
 		for (uint32_t i = 0; i < M_; i++)
 			fprintf(pFile, "%u\t%u\n", refID[i], uLmcount[i]);
 		fclose (pFile);
@@ -722,5 +710,14 @@ void FastaReader::computeIndex(int mode) {
 
 void FastaReader::setHashLength(uint32_t hl) {
 	HASH_LEN_ = hl;
+}
+
+void FastaReader::setFi(std::string &idx_fn_u, std::string &idx_fn_d) {
+	IDXFILEU = idx_fn_u;
+	IDXFILED = idx_fn_d;
+	assert(IDXFILEU != IDXFILED);
+	size_t found = IDXFILEU.find_last_of("/");
+	if (found != IDXFILEU.npos)
+		IDXDIR = IDXFILEU.substr(0, found + 1);
 }
 

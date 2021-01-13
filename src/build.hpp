@@ -50,6 +50,11 @@ class FastaReader {
 		uint32_t HASH_LEN_ = 12;
 		Hash *hasht = NULL;
 
+		/* Output file names. */
+		std::string IDXFILEU = "index_u.bin1";
+		std::string IDXFILED = "index_d.bin2";
+		std::string IDXDIR = "./";
+
 	public: 
 		const size_t block_size_ = 2097152;
 		const uint8_t base_offset = 165;
@@ -114,17 +119,11 @@ class FastaReader {
 
 		/* Build Index. */
 		void computeIndex(int);
-		//void analIndex(int, int);
-		//void outputRefLength();
-		//void insert32(uint64_t, uint32_t, uint32_t, uint8_t);
-		//void insert32_d(uint64_t, uint32_t, uint32_t, uint32_t, uint8_t, uint8_t);
-		//void try_increase_cnt_32(uint64_t, uint32_t, uint32_t);
 		void insert64(uint64_t, uint32_t, uint32_t, uint8_t);
 		void insert64_d(uint64_t, uint32_t, uint32_t, uint32_t, uint8_t, uint8_t);
 
 		void setHashLength(uint32_t);
-
-		//void try_printing_index_32(uint64_t, uint32_t);
+		void setFi(std::string&, std::string&);
 }; 
 
 #endif 

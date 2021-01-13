@@ -278,10 +278,6 @@ int main(int argc, char** argv) {
 			continue;
 		}
 		if (val == "-i") {
-			if (mode <= 0) {
-				fprintf(stderr, "Parameter i is only valid in mode QUERY.\n"); 
-				exit(EXIT_FAILURE);
-			}
 			if (++i >= argc) {
 				fprintf(stderr, "Please specify index file names.\n"); 
 				exit(EXIT_FAILURE);
@@ -476,8 +472,13 @@ int main(int argc, char** argv) {
 				if (fa_dir.length() > 0)
 					fprintf(stderr, "Ignoring the input directory.\n");
 				main_fr = new FastaReader(L, Lmax, K, t, fa_names);
-			} else
+				if (fi_name1 != "" && fi_name2 != "")
+					main_fr->setFi(fi_name1, fi_name2);
+			} else {
 				main_fr = new FastaReader(L, Lmax, K, t);
+				if (fi_name1 != "" && fi_name2 != "")
+					main_fr->setFi(fi_name1, fi_name2);
+			}
 
 			main_fr->readFnMap(fa_dir, fm_name);
 			main_fr->readAllFasta();
