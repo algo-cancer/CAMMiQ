@@ -647,6 +647,7 @@ void FastaReader::computeIndex(int mode) {
 	}
 
 	auto start = std::chrono::high_resolution_clock::now();
+	num_threads = std::min(num_threads, 4);
 	pthread_t threads[num_threads];
 	current_tid = 0;
 	for (int i = 0; i < num_threads; i++)

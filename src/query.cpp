@@ -1710,6 +1710,7 @@ void FqReader::runILPsc_gurobi(size_t file_idx, uint32_t min_rc, uint32_t mind_r
 			(std::chrono::high_resolution_clock::now() - start).count();
 	fprintf(stderr, "Time for quantification through GUROBI: %lu ms.\n", duration);
 }
+#endif
 
 void FqReader::outputUniqueCnts(size_t file_idx) {
 	size_t n_species = genomes.size() - 1;
@@ -1734,8 +1735,6 @@ void FqReader::outputUniqueCnts(size_t file_idx) {
 	}
 	fclose(fout);
 }
-
-#endif
 
 void FqReader::resetCounters() {
 	auto start = std::chrono::high_resolution_clock::now();

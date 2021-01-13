@@ -37,7 +37,7 @@ class FastaReader {
 		std::vector<bool> exist_unique_;
 		uint16_t *mu_index = NULL;
 
-		/* */
+		/* Access to suffix arrays and LCP arrays. */
 		SuffixArray* sa = NULL;
 		uint8_t *occ = NULL;
 		uint8_t *occ2 = NULL;
@@ -45,7 +45,7 @@ class FastaReader {
 		uint16_t *GSA2_ = NULL;
 		std::unordered_map<std::string, uint32_t> filenames;
 
-		/* */
+		/* Data structure to maintain substrings. */
 		pthread_spinlock_t* hasht_access;
 		uint32_t HASH_LEN_ = 12;
 		Hash *hasht = NULL;
