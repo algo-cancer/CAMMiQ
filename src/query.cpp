@@ -41,6 +41,9 @@ FqReader::FqReader(std::string &idx_fn_u, std::string &idx_fn_d, std::string &ma
 	//hash_len_d = hl;
 	IDXFILEU = idx_fn_u;
 	IDXFILED = idx_fn_d;
+	size_t found = IDXFILEU.find_last_of("/");
+	if (found != IDXFILEU.npos)
+		IDXDIR = IDXFILEU.substr(0, found + 1);
 	MAPFILE = map_fn;
 	OUTPUTFILE = output_fn;
 	erate_ = erate;
@@ -56,6 +59,9 @@ FqReader::FqReader(uint32_t hl, std::string &idx_fn_u, std::string &idx_fn_d,
 	hash_len_d = hl;
 	IDXFILEU = idx_fn_u;
 	IDXFILED = idx_fn_d;
+	size_t found = IDXFILEU.find_last_of("/");
+	if (found != IDXFILEU.npos)
+		IDXDIR = IDXFILEU.substr(0, found + 1);
 	MAPFILE = map_fn;
 	OUTPUTFILE = output_fn;
 	erate_ = erate;
@@ -70,6 +76,9 @@ FqReader::FqReader(uint32_t hl_u, std::string &idx_fn_u, uint32_t hl_d, std::str
 	hash_len_d = hl_d;
 	IDXFILEU = idx_fn_u;
 	IDXFILED = idx_fn_d;
+	size_t found = IDXFILEU.find_last_of("/");
+	if (found != IDXFILEU.npos)
+		IDXDIR = IDXFILEU.substr(0, found + 1);
 	MAPFILE = map_fn;
 	OUTPUTFILE = output_fn;
 	erate_ = erate;
@@ -137,7 +146,7 @@ void FqReader::loadGenomeLength() {
 	std::string line, id, gl, nu;
 	std::ifstream inputGLFile, inputULFile, inputDLFile;
 
-	inputGLFile.open("genome_lengths.out");
+	inputGLFile.open((IDXDIR + "genome_lengths.out").c_str());
 	while (std::getline(inputGLFile, line)) {
 		std::istringstream lines(line);
 		lines >> id;
@@ -146,7 +155,7 @@ void FqReader::loadGenomeLength() {
 	}
 	inputGLFile.close();
 
-	inputULFile.open("unique_lmer_count_u.out");
+	inputULFile.open((IDXDIR + "unique_lmer_count_u.out").c_str());
 	while (std::getline(inputULFile, line)) {
 		std::istringstream lines(line);
 		lines >> id;
@@ -155,7 +164,7 @@ void FqReader::loadGenomeLength() {
 	}
 	inputULFile.close();
 
-	inputDLFile.open("unique_lmer_count_d.out");
+	inputDLFile.open((IDXDIR + "unique_lmer_count_d.out").c_str());
 	while (std::getline(inputDLFile, line)) {
 		std::istringstream lines(line);
 		lines >> id;

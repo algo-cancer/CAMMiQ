@@ -53,6 +53,7 @@ class FqReader {
 		uint32_t hash_len_d = -1;
 		std::string IDXFILEU;
 		std::string IDXFILED;
+		std::string IDXDIR = "./";
 		Hash *ht_u = NULL;
 		Hash *ht_d = NULL;
 		float erate_;

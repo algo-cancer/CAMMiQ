@@ -285,8 +285,6 @@ int main(int argc, char** argv) {
 			while (i < argc && argv[i][0] != '-') {
 				std::string filename = argv[i++];
 				std::string ext = filename.substr(filename.find_last_of(".") + 1);
-				//if (ext == "idx" || ext == "bin")
-				//	fi_name = filename;
 				if (ext == "idx1" || ext == "bin1")
 					fi_name1 = filename;
 				if (ext == "idx2" || ext == "bin2")
@@ -472,11 +470,11 @@ int main(int argc, char** argv) {
 				if (fa_dir.length() > 0)
 					fprintf(stderr, "Ignoring the input directory.\n");
 				main_fr = new FastaReader(L, Lmax, K, t, fa_names);
-				if (fi_name1 != "" && fi_name2 != "")
+				if (fi_name1 != "" || fi_name2 != "")
 					main_fr->setFi(fi_name1, fi_name2);
 			} else {
 				main_fr = new FastaReader(L, Lmax, K, t);
-				if (fi_name1 != "" && fi_name2 != "")
+				if (fi_name1 != "" || fi_name2 != "")
 					main_fr->setFi(fi_name1, fi_name2);
 			}
 
