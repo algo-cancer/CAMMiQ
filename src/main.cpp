@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
 	FqReader *main_fqr = NULL;
 	int mode = -1, id_mode = 0;
 	bool debug_info = 0;
-	std::string idx_option;
+	std::string idx_option = "unique";
 	std::string output;
 	float erate = 0.01;
 	size_t min_rl = 0;

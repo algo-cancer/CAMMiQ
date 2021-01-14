@@ -713,13 +713,20 @@ void FastaReader::setHashLength(uint32_t hl) {
 }
 
 void FastaReader::setFi(std::string &idx_fn_u, std::string &idx_fn_d) {
-	if (idx_fn_u != "")
+	if (idx_fn_u != "") {
 		IDXFILEU = idx_fn_u;
-	if (idx_fn_d != "")
+		size_t found = IDXFILEU.find_last_of("/");
+		if (found != IDXFILEU.npos)
+			IDXDIR = IDXFILEU.substr(0, found + 1);
+	}
+	if (idx_fn_d != "") {
 		IDXFILED = idx_fn_d;
+		if (idx_fn_u == "") {
+			size_t found = IDXFILED.find_last_of("/");
+			if (found != IDXFILED.npos)
+				IDXDIR = IDXFILED.substr(0, found + 1);
+		}
+	}
 	assert(IDXFILEU != IDXFILED);
-	size_t found = IDXFILEU.find_last_of("/");
-	if (found != IDXFILEU.npos)
-		IDXDIR = IDXFILEU.substr(0, found + 1);
 }
 
