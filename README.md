@@ -37,6 +37,7 @@ You'll need to run ```./cammiq --build [options] [parameters]``` from command li
   * ```--unique``` CAMMiQ will build the set of *unique substrings* from each input genome, consisting of ```index_u.bin1```, ```genome_lengths.out``` and ```unique_lmer_count_u.out```. Note that ```--unique``` is the **default** option if nothing is specified in the command line instructions.
   * ```--doubly_unique``` CAMMiQ will build the set of *doubly unique substrings* from each input genome, consisting of ```index_d.bin2```, ```genome_lengths.out``` and ```unique_lmer_count_d.out```.
   * ```--both``` CAMMiQ will build its complete indices consisting of all above files.
+  * The index file names can be modified through ```-i``` option (see below).
 
 On the other hand, ```[parameters]``` include the following list of (possibly mandatory) parameters.
 * ```-f <MAP_FILE>``` **Mandatory**. ```<MAP_FILE>``` gives a list of reference genomes in fasta format, e.g., all/selected complete genomes in RefSeq for the bacterial, archaeal, and viral domains (downloaded with ```CAMMiQ-download```), which constitute CAMMiQ's database, possibly alongwith NCBI's taxonomic information. The input lines in ```<MAP_FILE>``` should contain at least 4 tab-delimited fields; from left to right, they are: 
@@ -68,6 +69,7 @@ On the other hand, ```[parameters]``` include the following list of (possibly ma
 * ```-h <int>|<int1 int2>``` **Optional**. Length of the common prefixes of the unique or doubly-unique substrings to be hashed. Default value is ```h = k``` or ```h = 26```.
   * Note a: The value of ```h``` is required to be *less than or equal to* ```k```. 
   * Note b: ```-h``` parameter can take in one or two integer values. With one input value ```h0```, CAMMiQ will set both hash lengths (for the collection of unique substrings and for the collection of doubly-unique substrings) ```h0```; with two input values ```h1``` and ```h2```, CAMMiQ will set the hash length for unique substrings ```h1``` and the hash length for doubly-unique substrings ```h2```.
+* ```-i <INDEX_FILES>``` **Optional**. ```<INDEX_FILES>``` should include two file names if ```-i``` is found in ```--build``` option, which indicate respectively the name of ```*.bin1``` and ```*.bin2``` file (See [What is CAMMiQ index composed of?](#-What-is-CAMMiQ-index-composed-of?)). The default file names (if ```-i``` is not specified) are ```index_u.bin1``` and ```index_d.bin2```. The meta-information file names (i.e., ```genome_lengths.out```, ```unique_lmer_count_u.out``` and ```unique_lmer_count_d.out```) cannot be changed; the default location (directory) to store these files is ```./```; however, if the directory of index file names is not ```./```, then the meta-information files will be written to the same directory as that is given in the index file names.
 * ```-t <int>``` **Optional**. Number of threads used during CAMMiQ's index construction. Note that CAMMiQ uses OpenMP during its index construction, which, by default, is 'auto-threaded' (i.e. attempts to use all available CPUs on a computer).
 
 **Example usage**:
@@ -76,9 +78,9 @@ cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -f genome_map1.txt -D /data
 ```
 The above command line instruction builds doubly-unique substrings (encoded in ```index_d.bin2```) from the genomes listed in ```genome_map1.txt``` stored under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 50]; with 32 threads; and to support query reads of length (roughly) 100. Note that -h was not specified so CAMMiQ takes its default value 26.
 ```
-cammiq --build --unique -k 26 -L 120 -Lmax 75 -h 25 -f genome_map2.out -D /data/fasta_dir/ -t 64
+cammiq --build --unique -k 26 -L 120 -Lmax 75 -h 25 -f genome_map2.out -D /data/fasta_dir/ -i /data/Indices/index_u_test.bin1 /data/Indices/index_d_test.bin2 -t 64
 ```
-The above command line instruction builds unique substrings (encoded in ```index_u.bin1```) from the genomes listed in ```genome_map2.txt``` stored again under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 75]; with 64 threads; and to support query reads of length (roughly) 120. Note that -h was set to 25, which does not exceed the maximum allowed value ```k=26```.
+The above command line instruction builds unique substrings (encoded in ```index_u.bin1```) from the genomes listed in ```genome_map2.txt``` stored again under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 75]; with index file names set to ```/data/Indices/index_u_test.bin1``` and ```/data/Indices/index_d_test.bin2``` (and meta-information files written to ```/data/Indices/```); with 64 threads; and to support query reads of length (roughly) 120. Note that -h was set to 25, which does not exceed the maximum allowed value ```k=26```.
 ```
 cammiq --build --both -k 21 -L 75 -Lmax 75 -h 21 -f bacteria1.fa bacteria2.fa bacteria3.fa
 ```
@@ -116,9 +118,9 @@ and ```[parameters]``` include the following list of (possibly mandatory) parame
 * ```-q (-Q) <QUERY_FILE(S)>``` **Mandatory**. ```<QUERY_FILE(S)>``` can be either a list of fastq files, or a directory containing the list of fastq files in your query. A capitalized ```-Q``` indicate the input is a directory, that is,  
   * ```-q``` CAMMiQ takes the list of fastq files.
   * ```-Q``` CAMMiQ takes a directory which contains the list of fastq files.
-* ```-i <INDEX_FILES>``` **Mandatory**. As discussed in [What is CAMMiQ index composed of?](#-What-is-CAMMiQ-index-composed-of?), ```<INDEX_FILES>``` include ```*.bin1```, ```*.bin2```, ```genome_lengths.out```,  ```unique_lmer_count_u.out```, ```unique_lmer_count_d.out```. ```-i``` parameter **should include** at least ```*.bin1``` and ```*.bin2```; the default location for CAMMiQ to find those meta-information (```genome_lengths.out```,  ```unique_lmer_count_u.out```, ```unique_lmer_count_d.out```) files is ```./```; if they are not stored in the current directory ```./```, you'll need to specify them explicity.
+* ```-i <INDEX_FILES>``` **Mandatory**. As discussed in [What is CAMMiQ index composed of?](#-What-is-CAMMiQ-index-composed-of?), ```<INDEX_FILES>``` **should include** ```*.bin1``` and ```*.bin2```; the default location for CAMMiQ to find those meta-information (```genome_lengths.out```,  ```unique_lmer_count_u.out```, ```unique_lmer_count_d.out```) files is the same as that provided in ```<INDEX_FILES>```.
 
-  One exception is when ```--read_cnts``` is specified. In this case you don't have to input ```unique_lmer_count_u.out``` and ```unique_lmer_count_d.out```; even if you give them, CAMMiQ will *ignore* these files.
+  One exception is when ```--read_cnts``` is specified. In this case CAMMiQ will automatically *ignore* the meta-information files.
 
 * ```-o <OUTPUT_FILE>``` **Optional (but strongly recommended)**. CAMMiQ's standard output file, with ```<OUTPUT_FILE>``` specifying the file name. Default output file name is ```quantification_results.out```. ```<OUTPUT_FILE>``` presents the (normalized) abundances resulted from each query fastq file. Each line (except the header lines) from left to right contains 3 tab-delimited fields: NCBI taxonomic ID, Abundance and Organism names. Two queries (fastqs) are separated by a blank line.
   
@@ -165,11 +167,11 @@ The first instruction queries against ```index_u.bin1``` and ```index_d.bin2``` 
 The second instruction queries the same set of reads, but this time CAMMiQ considers the reads ambiguously assigned to two genomes and resolves such ambiguity through ILP solvers (IBM ILOG CPLEX Optimization Studio or Gurobi Optimizer), with parameter ```--unique_read_cnt_thres``` set to 20 and ```--doubly_unique_read_cnt_thres``` set to 10. The maximum allowed number of threads for ILP solvers is set to 16.
 
 ```
-cammiq --query -f genome_map2.out -i index_u_test.bin1 index_d_test.bin2 -q query1.fastq query2.fastq -o cammiq_quantification.out -t 8
+cammiq --query -f genome_map2.out -i ../index_u_test.bin1 ../index_d_test.bin2 -q query1.fastq query2.fastq -o cammiq_quantification.out -t 8
 cammiq --query -h 31 -f genome_map3.out -i index_u.bin1 index_d.bin2 -Q /data/fastqs/ -o gurobi_solutions.out -t 8 --ilp_alpha 0.001
 cammiq --query -h 25 25 -f genome_map4.out -i index_u.bin1 index_d.bin2 -Q /data/test_fastqs/ -o cplex_solutions.out -t 8 --enable_ilp_display --ilp_alpha 0.001 --read_cnt_thres 50 --ilp_epsilon 0.1
 ```
-The third instruction queries against ```index_u_test.bin1``` and ```index_d_test.bin2``` the reads from two given fastq files ```query1.fastq``` and ```query2.fastq```; with each fastq forming a distinct query; with the corresponding genomes (of course, within the list of ```genome_map2.out```) and their relative bundances written into ```cammiq_quantification.out```; with 8 threads both for querying the index and using ILP to quantify the abundances.
+The third instruction queries against ```index_u_test.bin1``` and ```index_d_test.bin2``` (both stored in the parent level of directory ```../```; with meta-information also stored under ```../```) the reads from two given fastq files ```query1.fastq``` and ```query2.fastq```; with each fastq forming a distinct query; with the corresponding genomes (of course, within the list of ```genome_map2.out```) and their relative bundances written into ```cammiq_quantification.out```; with 8 threads both for querying the index and using ILP to quantify the abundances.
 
 The fourth instruction queries against ```index_u.bin1``` and ```index_d.bin2``` the reads from all fastq files under the above directory ```/data/fastqs/```; with each fastq forming a distinct query; with the corresponding genomes (within the list of ```genome_map3.out```) and their relative bundances written into ```gurobi_solutions.out```; with again 8 threads both for querying the index and using ILP to quantify the abundances; with parameter ```--ilp_alpha``` set to ```0.001``` (this correspond to part of our results shown in the paper). Note that with ```-h 31``` set both hash lengths to ```31``` - in this case if the hash lengths stored in the indices do not match, CAMMiQ will report an error.
 
