@@ -78,9 +78,10 @@ cammiq --build --doubly_unique -k 26 -L 100 -Lmax 50 -f genome_map1.txt -D /data
 ```
 The above command line instruction builds doubly-unique substrings (encoded in ```index_d.bin2```) from the genomes listed in ```genome_map1.txt``` stored under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 50]; with 32 threads; and to support query reads of length (roughly) 100. Note that -h was not specified so CAMMiQ takes its default value 26.
 ```
+cammiq --build -k 26 -L 120 -Lmax 75 -h 25 -f genome_map2.out -D /data/fasta_dir/ -i /data/Indices/index_u_test.bin1 -t 64
 cammiq --build --unique -k 26 -L 120 -Lmax 75 -h 25 -f genome_map2.out -D /data/fasta_dir/ -i /data/Indices/index_u_test.bin1 -t 64
 ```
-The above command line instruction builds unique substrings (encoded in ```index_u.bin1```) from the genomes listed in ```genome_map2.txt``` stored again under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 75]; with index file names set to ```/data/Indices/index_u_test.bin1``` (and meta-information files written to ```/data/Indices/```); with 64 threads; and to support query reads of length (roughly) 120. Note that -h was set to 25, which does not exceed the maximum allowed value ```k=26```.
+Either of the above two command line instructions will build unique substrings (encoded in ```/data/Indices/index_u_test.bin1``` and meta-information files written to ```/data/Indices/```) from the genomes listed in ```genome_map2.txt``` stored again under the directory ```/data/fasta_dir/```; with substring lengths ranging from [26, 75]; with 64 threads; and to support query reads of length (roughly) 120. Note that -h was set to 25, which does not exceed the maximum allowed value ```k=26```.
 ```
 cammiq --build --both -k 21 -L 75 -Lmax 75 -h 21 -f bacteria1.fa bacteria2.fa bacteria3.fa
 ```
