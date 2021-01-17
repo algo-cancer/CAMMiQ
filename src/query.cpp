@@ -1275,7 +1275,10 @@ void FqReader::runILP_cplex(size_t file_idx, int read_cnt_thres, uint32_t unique
 
 		fclose(fout);
 
-	} catch (IloException &ex) {}
+	} catch (IloException &ex) {
+		fprintf(stderr, "%s\n", ex.getMessage());
+		abort();
+	}
 
 	if (exist != NULL)
 		delete [] exist;
@@ -1406,7 +1409,10 @@ void FqReader::runILPsc_cplex(size_t file_idx, uint32_t min_rc, uint32_t mind_rc
 		}
 
 		fclose(fout);
-	} catch (IloException &ex) {}
+	} catch (IloException &ex) {
+		fprintf(stderr, "%s\n", ex.getMessage());
+		abort();
+	}
 
 	if (exist != NULL)
 		delete [] exist;

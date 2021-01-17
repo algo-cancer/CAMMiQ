@@ -29,6 +29,7 @@ quiet = 0
 fn_map = dict()
 download_list = []
 taxids = []
+taxid_status = []
 
 def parse_arguments():
 	global db_dir, sample_genomes, unzip_genomes, div, quiet
@@ -82,16 +83,25 @@ def parse_assembly_summary_taxid(assembly_summary_fn = "assembly_summary_bacteri
 			continue
 		line = line.strip()
 		tokens = line.split('\t')
-		if tokens[11] == "Complete Genome" and tokens[5] not in taxids:
-			fn = tokens[19].split('/')
-			fn = fn[-1] + "_genomic.fna"
-			fn_map[fn] = [tokens[5], tokens[7]]
-			"""
-			First try to find a representative genome
-			"""
-
-			download_list.append(tokens[19] + "/" + fn + ".gz")
-			taxids.append(tokens[5])
+		if tokens[11] == "Complete Genome":
+			if tokens[5] not in taxids:
+				fn = tokens[19].split('/')
+				fn = fn[-1] + "_genomic.fna"
+				fn_map[fn] = [tokens[5], tokens[7]]
+				download_list.append(tokens[19] + "/" + fn + ".gz")
+				taxids.append(tokens[5])
+				taxid_status.append(tokens[4])
+			else:
+				taxid_idx = taxids.index(tokens[5])
+				if (taxid_status[taxid_idx] == "na" and \
+					(tokens[4] == "reference genome" or tokens[4] == "representative genome")) or \
+					(taxid_status[taxid_idx] == "representative genome" and tokens[4] == "reference genome"):
+					fn = tokens[19].split('/')
+					fn = fn[-1] + "_genomic.fna"
+					fn_map[fn] = [tokens[5], tokens[7]]
+					download_list[taxid_idx] = tokens[19] + "/" + fn + ".gz"
+					#taxids[taxid_idx] = tokens[5]
+					taxid_status[taxid_idx] = tokens[4]
 	fp.close()
 
 def parse_assembly_summary_species(assembly_summary_fn = "assembly_summary_bacteria.txt"):
@@ -102,12 +112,25 @@ def parse_assembly_summary_species(assembly_summary_fn = "assembly_summary_bacte
 			continue
 		line = line.strip()
 		tokens = line.split('\t')
-		if tokens[11] == "Complete Genome" and tokens[6] not in taxids:
-			fn = tokens[19].split('/')
-			fn = fn[-1] + "_genomic.fna"
-			fn_map[fn] = [tokens[6], tokens[7]]
-			download_list.append(tokens[19] + "/" + fn + ".gz")
-			taxids.append(tokens[6])
+		if tokens[11] == "Complete Genome":
+			if tokens[6] not in taxids:
+				fn = tokens[19].split('/')
+				fn = fn[-1] + "_genomic.fna"
+				fn_map[fn] = [tokens[6], tokens[7]]
+				download_list.append(tokens[19] + "/" + fn + ".gz")
+				taxids.append(tokens[6])
+				taxid_status.append(tokens[4])
+			else:
+				taxid_idx = taxids.index(tokens[6])
+				if (taxid_status[taxid_idx] == "na" and \
+					(tokens[4] == "reference genome" or tokens[4] == "representative genome")) or \
+					(taxid_status[taxid_idx] == "representative genome" and tokens[4] == "reference genome"):
+					fn = tokens[19].split('/')
+					fn = fn[-1] + "_genomic.fna"
+					fn_map[fn] = [tokens[6], tokens[7]]
+					download_list[taxid_idx] = tokens[19] + "/" + fn + ".gz"
+					taxid_status[taxid_idx] = tokens[4]
+					#print tokens[4], tokens[5], tokens[6], taxid_idx, taxids[taxid_idx], taxid_status[taxid_idx]
 	fp.close()
 	
 def prepare_assembly_summary(division, q = 0):
