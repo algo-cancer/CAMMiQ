@@ -99,8 +99,10 @@ def parse_assembly_summary_taxid(assembly_summary_fn = "assembly_summary_bacteri
 					fn = tokens[19].split('/')
 					fn = fn[-1] + "_genomic.fna"
 					fn_map[fn] = [tokens[5], tokens[7]]
+					fn_old = download_list[taxid_idx].split('/')
+					fn_old = fn_old[-1][:-3]
+					del fn_map[fn_old]
 					download_list[taxid_idx] = tokens[19] + "/" + fn + ".gz"
-					#taxids[taxid_idx] = tokens[5]
 					taxid_status[taxid_idx] = tokens[4]
 	fp.close()
 
@@ -128,9 +130,11 @@ def parse_assembly_summary_species(assembly_summary_fn = "assembly_summary_bacte
 					fn = tokens[19].split('/')
 					fn = fn[-1] + "_genomic.fna"
 					fn_map[fn] = [tokens[6], tokens[7]]
+					fn_old = download_list[taxid_idx].split('/')
+					fn_old = fn_old[-1][:-3]
+					del fn_map[fn_old]
 					download_list[taxid_idx] = tokens[19] + "/" + fn + ".gz"
 					taxid_status[taxid_idx] = tokens[4]
-					#print tokens[4], tokens[5], tokens[6], taxid_idx, taxids[taxid_idx], taxid_status[taxid_idx]
 	fp.close()
 	
 def prepare_assembly_summary(division, q = 0):
