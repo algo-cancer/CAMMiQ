@@ -103,14 +103,19 @@ void FastaReader::readFnMap(std::string &INDIR, std::string &INFILE) {
 
 	/* Read in fasta file. */
 	inputFile.open(INFILE);
-	while (std::getline(inputFile, line)) {
-		std::istringstream lines(line);
-		lines >> fn;
-		lines >> sp;
-		int sp_ = stoi(sp);
-		filenames[INDIR + fn] = sp_;
-		if (sp_ > max_rid)
-			max_rid = sp_;
+	if (inputFile.is_open()) {
+		while (std::getline(inputFile, line)) {
+			std::istringstream lines(line);
+			lines >> fn;
+			lines >> sp;
+			int sp_ = stoi(sp);
+			filenames[INDIR + fn] = sp_;
+			if (sp_ > max_rid)
+				max_rid = sp_;
+		}
+	} else {
+		fprintf(stderr, "Can not open map file %s.\n", INFILE.c_str());
+		abort();
 	}
 	inputFile.close();
 	fprintf(stderr, "Prepared species information of every fasta file.\n");
@@ -122,34 +127,39 @@ void FastaReader::readFasta(std::string &INFILE) {
 
 	/* Read in fasta file. */ 
 	inputFile.open(INFILE);
-	while (std::getline(inputFile, bases)) {
-		if (bases[0] == '>') {
-			if (N_ > 0 && seqs[cur][pos - 1] >= base_offset) {
-				if (!insertContig()) {
-					inputFile.close();
-					abort();
-				} else {
-					if (!insertRC()) {
+	if (inputFile.is_open()) {
+		while (std::getline(inputFile, bases)) {
+			if (bases[0] == '>') {
+				if (N_ > 0 && seqs[cur][pos - 1] >= base_offset) {
+					if (!insertContig()) {
 						inputFile.close();
 						abort();
+					} else {
+						if (!insertRC()) {
+							inputFile.close();
+							abort();
+						}
 					}
 				}
+			} else {
+				if (!insertBase(bases)) {
+					inputFile.close();
+					abort();
+				}
 			}
+		}
+		if (!insertContig()) {
+			inputFile.close();
+			abort();
 		} else {
-			if (!insertBase(bases)) {
+			if (!insertRC()) {
 				inputFile.close();
 				abort();
 			}
 		}
-	}
-	if (!insertContig()) {
-		inputFile.close();
-		abort();
 	} else {
-		if (!insertRC()) {
-			inputFile.close();
-			abort();
-		}
+		fprintf(stderr, "Can not open fasta file %s.\n", INFILE.c_str());
+		abort();
 	}
 		
 	ref_pos.push_back(cur * block_size_ + pos);
@@ -161,7 +171,7 @@ void FastaReader::readFasta(std::string &INFILE) {
 	}
 	inputFile.close();
 	
-	//fprintf(stderr,	"Reference sequence %s loaded.\r", INFILE.c_str()); 
+	//fprintf(stderr,	"Reference sequence %s loaded.\n", INFILE.c_str()); 
 }
 
 bool FastaReader::insertBase(std::string& bases) {
@@ -661,50 +671,70 @@ void FastaReader::computeIndex(int mode) {
 	if (mode == 1) {
 		hasht->encodeIdx64(IDXFILEU, 0);
 		FILE *lcFile = fopen((IDXDIR + "unique_lmer_count_u.out").c_str(), "w");
-		//fprintf(lcFile, "REFID\tCNT\n");
-		for (uint32_t i = 0; i < M_; i++)
-			fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
-		fclose (lcFile);
-		FILE *glFile = fopen((IDXDIR + "genome_lengths.out").c_str(), "w");
-		//fprintf(glFile, "REFID\tLENGTH\n");
-		uint32_t gl = 0, j = 0;
-		for (uint32_t i = 0; i < C_; i++) {
-			gl += (contig_pos[i] - ((i == 0) ? 0 : contig_pos[i - 1]) - 4);
-			if (contig_pos[i] >= ref_pos[j]) {
-				fprintf(glFile, "%u\t%u\n", refID[j], gl / 2);
-				j++;
-				gl = 0;
-			}	
+		if (lcFile != NULL) {
+			for (uint32_t i = 0; i < M_; i++)
+				fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
+			fclose(lcFile);
+		} else {
+			fprintf(stderr, "Can not open unique count file.\n");
+			abort();
 		}
-		fclose (glFile);
+		FILE *glFile = fopen((IDXDIR + "genome_lengths.out").c_str(), "w");
+		if (glFile != NULL) {
+			uint32_t gl = 0, j = 0;
+			for (uint32_t i = 0; i < C_; i++) {
+				gl += (contig_pos[i] - ((i == 0) ? 0 : contig_pos[i - 1]) - 4);
+				if (contig_pos[i] >= ref_pos[j]) {
+					fprintf(glFile, "%u\t%u\n", refID[j], gl / 2);
+					j++;
+					gl = 0;
+				}	
+			}
+			fclose(glFile);
+		} else {
+			fprintf(stderr, "Can not open genome length file.\n");
+			abort();
+		}
 	}
 	if (mode == 2) {
 		hasht->encodeIdx64_d(IDXFILED, 0);
 		FILE *lcFile = fopen((IDXDIR + "unique_lmer_count_d.out").c_str(), "w");
-		//fprintf(lcFile, "REFID\tCNT\n");
-		for (uint32_t i = 0; i < M_; i++)
-			fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
-		fclose (lcFile);
-		FILE *glFile = fopen((IDXDIR + "genome_lengths.out").c_str(), "w");
-		//fprintf(glFile, "REFID\tLENGTH\n");
-		uint32_t gl = 0, j = 0;
-		for (uint32_t i = 0; i < C_; i++) {
-			gl += (contig_pos[i] - ((i == 0) ? 0 : contig_pos[i - 1]) - 4);
-			if (contig_pos[i] >= ref_pos[j]) {
-				fprintf(glFile, "%u\t%u\n", refID[j], gl / 2);
-				j++;
-				gl = 0;
-			}
+		if (lcFile != NULL) {
+			for (uint32_t i = 0; i < M_; i++)
+				fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
+			fclose(lcFile);
+		} else {
+			fprintf(stderr, "Can not open doubly-unique count file.\n");
+			abort();
 		}
-		fclose (glFile);
+		FILE *glFile = fopen((IDXDIR + "genome_lengths.out").c_str(), "w");
+		if (glFile != NULL) {
+			uint32_t gl = 0, j = 0;
+			for (uint32_t i = 0; i < C_; i++) {
+				gl += (contig_pos[i] - ((i == 0) ? 0 : contig_pos[i - 1]) - 4);
+				if (contig_pos[i] >= ref_pos[j]) {
+					fprintf(glFile, "%u\t%u\n", refID[j], gl / 2);
+					j++;
+					gl = 0;
+				}
+			}
+			fclose(glFile);
+		} else {
+			fprintf(stderr, "Can not open genome length file.\n");
+			abort();
+		}
 	}
 	if (mode == 3) {
 		hasht->encodeIdx64_d(IDXFILED, 0);
-		FILE *pFile = fopen((IDXDIR + "unique_lmer_count_d.out").c_str(), "w");
-		//fprintf(pFile, "REFID\tCNT\n");
-		for (uint32_t i = 0; i < M_; i++)
-			fprintf(pFile, "%u\t%u\n", refID[i], uLmcount[i]);
-		fclose (pFile);
+		FILE *lcFile = fopen((IDXDIR + "unique_lmer_count_d.out").c_str(), "w");
+		if (lcFile != NULL) {
+			for (uint32_t i = 0; i < M_; i++)
+				fprintf(lcFile, "%u\t%u\n", refID[i], uLmcount[i]);
+			fclose (lcFile);
+		} else {
+			fprintf(stderr, "Can not open doubly-unique count file.\n");
+			abort();
+		}
 	}
 }
 

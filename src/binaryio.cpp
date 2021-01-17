@@ -19,8 +19,9 @@ void BitWriter::writeBit(bool value) {
 			curByte = 0;
 			curBits = 0;
 		}
-	} catch (std::ofstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Exception writing to file.\n");
+		abort();
 	}
 
 	/* Add to current byte */
@@ -42,10 +43,9 @@ void BitWriter::writeBits16(uint32_t value) {
 		stream_INT.write((char*) &value_, 1);
 		value_ = value & 0xFF;
 		stream_INT.write((char*) &value_, 1);
-		/*uint32_t value_ = (value << 16);
-		stream_INT.write((char*) &value_, 2);*/
-	} catch (std::ofstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Exception writing to file.\n");
+		abort();
 	}
 }
 
@@ -55,29 +55,21 @@ void BitWriter::writeBits32(uint32_t value) {
 			int value_ = (value >> (8 * (3 - i))) & 0xFF;
 			stream_INT.write((char*) &value_, 1);
 		}
-		//uint32_t value_ = value;
-		//stream_INT.write((char*) &value_, 4);
-	} catch (std::ofstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Exception writing to file.\n");
+		abort();
 	}
 }
 
 void BitWriter::writeBits64(uint64_t value) {
 	try {
-		/*if (test == 0)
-			fprintf(stderr, "--------%lu; %lu\n", value, sizeof(value));
-		test++;
-		uint64_t value_ = value;
-		stream_INT.write((char*) &value_, 8);*/
 		for (int i = 0; i < 8; i++) {
 			int value_ = (value >> (8 * (7 - i))) & 0xFF;
 			stream_INT.write((char*) &value_, 1);
 		}
-		//uint64_t value_ = value;
-		//stream_INT.write((char*) &value_, 8);
-
-	} catch (std::ofstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Exception writing to file.\n");
+		abort();
 	}
 }
 
@@ -85,9 +77,18 @@ void BitWriter::openFile(const std::string &ofn) {
 	try {
 		std::string aux_fn = ofn + ".aux";
 		stream_INT.open(ofn.c_str(), std::ios::out | std::ios::binary);
-		stream_AUX.open(aux_fn.c_str(), std::ios::out | std::ios::binary); 
-	} catch (std::ofstream::failure e) { 
-		fprintf(stderr, "Cannot open file: %s.\n", ofn.c_str()); 
+		stream_AUX.open(aux_fn.c_str(), std::ios::out | std::ios::binary);
+		if (!stream_INT.is_open()) {
+			fprintf(stderr, "Cannot open file: %s.\n", ofn.c_str());
+			abort();
+		}
+		if (!stream_AUX.is_open()) {
+			fprintf(stderr, "Cannot open file: %s.\n", aux_fn.c_str());
+			abort();
+		} 
+	} catch (...) { 
+		fprintf(stderr, "Cannot open file: %s.\n", ofn.c_str());
+		abort(); 
 	}
 }
 
@@ -126,8 +127,9 @@ void BitWriter::closeFile() {
 	try {
 		stream_INT.close();
 		stream_AUX.close(); 
-	} catch (std::ofstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Exception closing file.\n");
+		abort();
 	} 
 }
 
@@ -160,7 +162,6 @@ uint32_t BitReader::readBits(int count) {
 }
 
 uint16_t BitReader::readBits16() {
-	//fprintf(stderr, "buffer_INT[8] = %d", buffer_INT[8]);
 	uint16_t value = buffer_INT[cur_INT++] & 0xFF;
 	value = ((value << 8) | (buffer_INT[cur_INT++] & 0xFF));
 	return value;
@@ -174,12 +175,9 @@ uint32_t BitReader::readBits32() {
 }
 
 uint64_t BitReader::readBits64() {
-	//fprintf(stderr, "value: %d, %d\n",  buffer_INT[0], buffer_INT[1]);
 	uint64_t value = buffer_INT[cur_INT++] & 0xFF;
-	for (int i = 0; i < 7; i++) {
-		//fprintf(stderr, "value: %lu, %d\n", value, buffer_INT[cur_INT]);
+	for (int i = 0; i < 7; i++)
 		value = ((value << 8) | (buffer_INT[cur_INT++] & 0xFF));
-	}
 	return value;
 }
 
@@ -189,25 +187,29 @@ void BitReader::openFile(const std::string &fn) {
 		//stream_INT.open(fn.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
 		stream_INT.open(fn.c_str(), std::ios::in | std::ios::binary);
 		stream_AUX.open(aux_fn.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+		if (!stream_INT.is_open()) {
+			fprintf(stderr, "Cannot open file: %s.\n", fn.c_str());
+			abort();
+		}
+		if (!stream_AUX.is_open()) {
+			fprintf(stderr, "Cannot open file: %s.\n", aux_fn.c_str());
+			abort();
+		}
 		
 		stream_INT.seekg(0, std::ios::end);
 		fsize_INT = stream_INT.tellg();
-		//fprintf(stderr, "%lu\n", fsize_INT);
 		buffer_INT = new char[fsize_INT + 100];
-		//buffer_INT = new char[10000];
-		//fprintf(stderr, "%d\n", buffer_INT[0]);
 		stream_INT.seekg(0, std::ios::beg);
 		stream_INT.read(buffer_INT, fsize_INT);
-		//stream_INT.read(buffer_INT, 1000);
-		//fprintf(stderr, "%d\n", buffer_INT[0]);
-
+		
 		stream_AUX.seekg(0, std::ios::end);
 		fsize_AUX = stream_AUX.tellg();
 		buffer_AUX = new char[fsize_AUX + 100];
 		stream_AUX.seekg(0, std::ios::beg);
 		stream_AUX.read(buffer_AUX, fsize_AUX);
-	} catch (std::ifstream::failure e) {
-		fprintf(stderr, "File does not exist.\n");
+	} catch (...) {
+		fprintf(stderr, "Exception opening file.\n");
+		abort();
 	}
 }
 
@@ -215,8 +217,9 @@ void BitReader::closeFile() {
 	try {
 		stream_INT.close();
 		stream_AUX.close();
-	} catch (std::ifstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Exception closing file.\n");
+		abort();
 	}
 }
 

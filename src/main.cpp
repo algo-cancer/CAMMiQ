@@ -39,6 +39,7 @@ void printUsage() {
 	fprintf(stderr, "-o <string>,\t output file name.\n");
 	fprintf(stderr, "-e <float>,\t expected sequencing error probability in queries.\n");
 	fprintf(stderr, "-t <integer>,\t number of threads. \n\n");
+	fprintf(stderr, "See README for other fine grained parameters.\n\n");
 	fprintf(stderr, "--help,\t to print user options.\n");
 	//fprintf(stderr, "--version,\t to print the version information.\n\n");
 	//fprintf(stderr, "Version: 0.0; Contact: kzhu@indiana.edu.\n");
@@ -444,16 +445,8 @@ int main(int argc, char** argv) {
 		exit(EXIT_FAILURE);
 	}
 	
-	if (h == -1 && h1 == -1 && h2 == -1) {
-		fprintf(stderr, "Warning: missing parameter h, set to default h = 26.\n");
-		h = 26;
-		h1 = 26;
-		h2 = 26;
-	}
-	
 	switch (mode) {
 		case 0:
-			//NEED TO CHECK map file!
 			if (K == -1) {
 				fprintf(stderr, "Warning: missing parameter k, set to default k = 26.\n");
 				K = 26;
@@ -465,6 +458,12 @@ int main(int argc, char** argv) {
 			if (Lmax == -1) {
 				fprintf(stderr, "Warning: missing parameter Lmax, set to default Lmax = 50.\n");
 				Lmax = 50;
+			}
+			if (h == -1 && h1 == -1 && h2 == -1) {
+				fprintf(stderr, "Warning: missing parameter h, set to default h = 26.\n");
+				h = 26;
+				h1 = 26;
+				h2 = 26;
 			}
 			if (!fa_names.empty()) {
 				if (fa_dir.length() > 0)
@@ -484,11 +483,19 @@ int main(int argc, char** argv) {
 
 			if (idx_option.compare("unique") == 0) {
 				main_fr->allocSuffixArray(1);
+				if (h == -1) {
+					fprintf(stderr, "Only one hash length is allowed in mode --unique.\n");
+					exit(EXIT_FAILURE);
+				}
 				main_fr->setHashLength(h);
 				main_fr->computeIndex(1);
 			}
 			if (idx_option.compare("doubly_unique") == 0) {
 				main_fr->allocSuffixArray(2);
+				if (h == -1) {
+					fprintf(stderr, "Only one hash length is allowed in mode --doubly_unique.\n");
+					exit(EXIT_FAILURE);
+				}
 				main_fr->setHashLength(h);
 				main_fr->computeIndex(2);
 			}
@@ -514,11 +521,10 @@ int main(int argc, char** argv) {
 				if (h1 == -1 || h2 == -1) {
 					fprintf(stderr, "Warning: Hash length not specified, using that encoded in the index.\n");
 					main_fqr = new FqReader(fi_name1, fi_name2, fm_name, output, erate, debug_info);
-				}
-				main_fqr = new FqReader(h1, fi_name1, h2, fi_name2, fm_name, output, erate, debug_info);
-			} else {
+				} else
+					main_fqr = new FqReader(h1, fi_name1, h2, fi_name2, fm_name, output, erate, debug_info);
+			} else
 				main_fqr = new FqReader(h, fi_name1, fi_name2, fm_name, output, erate, debug_info);
-			}
 			main_fqr->loadIdx_p();
 			main_fqr->loadSmap();
 			main_fqr->nthreads = t;

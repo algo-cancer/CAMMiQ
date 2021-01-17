@@ -707,8 +707,9 @@ void SuffixArray::readArray64(uint64_t *arr, uint64_t n, std::string &fn) {
 		istream.open(fn.c_str(), std::ios::in | std::ios::binary);
 		istream.read((char*) arr, n * sizeof(uint64_t));
 		istream.close();
-	} catch (std::ifstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Error in reading array %s.\n", fn.c_str());
+		abort();
 	}
 }
 
@@ -718,8 +719,9 @@ void SuffixArray::readArray32(uint32_t *arr, uint64_t n, std::string &fn) {
 		istream.open(fn.c_str(), std::ios::in | std::ios::binary);
 		istream.read((char*) arr, n * sizeof(uint32_t));
 		istream.close();
-	} catch (std::ifstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Error in reading array %s.\n", fn.c_str());
+		abort();
 	}
 }
 
@@ -729,8 +731,9 @@ void SuffixArray::readArray16(uint16_t *arr, uint64_t n, std::string &fn) {
 		istream.open(fn.c_str(), std::ios::in | std::ios::binary);
 		istream.read((char*) arr, n * sizeof(uint16_t));
 		istream.close();
-	} catch (std::ifstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Error in reading array %s.\n", fn.c_str());
+		abort();
 	}
 }
 
@@ -740,8 +743,9 @@ void SuffixArray::writeArray64(uint64_t *arr, uint64_t n, std::string &fn) {
 		ostream.open(fn.c_str(), std::ios::out | std::ios::binary);
 		ostream.write((char*) arr, n * sizeof(uint64_t));
 		ostream.close();
-	} catch (std::ofstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Error in writing array %s.\n", fn.c_str());
+		abort();
 	}
 }
 
@@ -751,8 +755,9 @@ void SuffixArray::writeArray32(uint32_t *arr, uint64_t n, std::string &fn) {
 		ostream.open(fn.c_str(), std::ios::out | std::ios::binary);
 		ostream.write((char*) arr, n * sizeof(uint32_t));
 		ostream.close();
-	} catch (std::ofstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Error in writing array %s.\n", fn.c_str());
+		abort();
 	}
 }
 
@@ -762,8 +767,9 @@ void SuffixArray::writeArray16(uint16_t *arr, uint64_t n, std::string &fn) {
 		ostream.open(fn.c_str(), std::ios::out | std::ios::binary);
 		ostream.write((char*) arr, n * sizeof(uint16_t));
 		ostream.close();
-	} catch (std::ofstream::failure e) {
+	} catch (...) {
 		fprintf(stderr, "Error in writing array %s.\n", fn.c_str());
+		abort();
 	}
 }
 

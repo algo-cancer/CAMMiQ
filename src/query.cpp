@@ -127,18 +127,22 @@ void FqReader::loadSmap() {
 
 	/* Read in fasta file. */ 
 	inputFile.open(MAPFILE);
-	
-	while (std::getline(inputFile, line)) {
-		std::istringstream lines(line);
-		while(std::getline(lines, gname, '\t')) {
-			std::getline(lines, id, '\t');
-			std::getline(lines, taxid, '\t');
-			std::getline(lines, gname, '\t');
+	if (inputFile.is_open()) {
+		while (std::getline(inputFile, line)) {
+			std::istringstream lines(line);
+			while(std::getline(lines, gname, '\t')) {
+				std::getline(lines, id, '\t');
+				std::getline(lines, taxid, '\t');
+				std::getline(lines, gname, '\t');
+			}
+			Genome *new_genome = new Genome((uint32_t) stoi(taxid), gname);
+			genomes.push_back(new_genome);
 		}
-		Genome *new_genome = new Genome((uint32_t) stoi(taxid), gname);
-		genomes.push_back(new_genome);
+		inputFile.close();
+	} else {
+		fprintf(stderr, "Can not open map file %s.\n", MAPFILE.c_str());
+		abort();
 	}
-	inputFile.close();
 	fprintf(stderr, "Loaded genome map file.\n");
 }
 
@@ -147,31 +151,46 @@ void FqReader::loadGenomeLength() {
 	std::ifstream inputGLFile, inputULFile, inputDLFile;
 
 	inputGLFile.open((IDXDIR + "genome_lengths.out").c_str());
-	while (std::getline(inputGLFile, line)) {
-		std::istringstream lines(line);
-		lines >> id;
-		lines >> gl;
-		genomes[stoi(id)]->glength = ((uint32_t) stoi(gl));
+	if (inputGLFile.is_open()) {
+		while (std::getline(inputGLFile, line)) {
+			std::istringstream lines(line);
+			lines >> id;
+			lines >> gl;
+			genomes[stoi(id)]->glength = ((uint32_t) stoi(gl));
+		}
+		inputGLFile.close();
+	} else {
+		fprintf(stderr, "Can not open genome length file.\n");
+		abort();
 	}
-	inputGLFile.close();
 
 	inputULFile.open((IDXDIR + "unique_lmer_count_u.out").c_str());
-	while (std::getline(inputULFile, line)) {
-		std::istringstream lines(line);
-		lines >> id;
-		lines >> nu;
-		genomes[stoi(id)]->nus = ((uint32_t) stoi(nu));
+	if (inputULFile.is_open()) {
+		while (std::getline(inputULFile, line)) {
+			std::istringstream lines(line);
+			lines >> id;
+			lines >> nu;
+			genomes[stoi(id)]->nus = ((uint32_t) stoi(nu));
+		}
+		inputULFile.close();
+	} else {
+		fprintf(stderr, "Can not open unique count file.\n");
+		abort();
 	}
-	inputULFile.close();
 
 	inputDLFile.open((IDXDIR + "unique_lmer_count_d.out").c_str());
-	while (std::getline(inputDLFile, line)) {
-		std::istringstream lines(line);
-		lines >> id;
-		lines >> nu;
-		genomes[stoi(id)]->nds = ((uint32_t) stoi(nu));
+	if (inputDLFile.is_open()) {
+		while (std::getline(inputDLFile, line)) {
+			std::istringstream lines(line);
+			lines >> id;
+			lines >> nu;
+			genomes[stoi(id)]->nds = ((uint32_t) stoi(nu));
+		}
+		inputDLFile.close();
+	} else {
+		fprintf(stderr, "Can not open doubly-unique count file.\n");
+		abort();
 	}
-	inputDLFile.close();
 
 	fprintf(stderr, "Loaded genome length file.\n");
 }
@@ -1219,6 +1238,10 @@ void FqReader::runILP_cplex(size_t file_idx, int read_cnt_thres, uint32_t unique
 		fout = fopen(OUTPUTFILE.c_str(), "w");
 	else
 		fout = fopen(OUTPUTFILE.c_str(), "a");
+	if (fout == NULL) {
+		fprintf(stderr, "Can not open output file %s.\n", OUTPUTFILE.c_str());
+		abort();
+	}
 
 	// Solving the ILP.
 	try {	
@@ -1315,15 +1338,25 @@ void FqReader::runILPsc_cplex(size_t file_idx, uint32_t min_rc, uint32_t mind_rc
 	FILE *fout;
         if (file_idx == 0) {
                 fout = fopen(OUTPUTFILE.c_str(), "w");
-		fprintf(fout, "QUERY/TAXID\t");
-		for (size_t i = 1; i <= n_species; i++) {
-			if (i < n_species)
-				fprintf(fout, "%u\t", genomes[i]->taxID);
-			else
-				fprintf(fout, "%u\n", genomes[i]->taxID);
+		if (fout != NULL) {
+			fprintf(fout, "QUERY/TAXID\t");
+			for (size_t i = 1; i <= n_species; i++) {
+				if (i < n_species)
+					fprintf(fout, "%u\t", genomes[i]->taxID);
+				else
+					fprintf(fout, "%u\n", genomes[i]->taxID);
+			}
+		} else {
+			fprintf(stderr, "Can not open output file %s.\n", OUTPUTFILE.c_str());
+			abort();
 		}
-        } else
+        } else {
                 fout = fopen(OUTPUTFILE.c_str(), "a");
+		if (fout == NULL) {
+			fprintf(stderr, "Can not open output file %s.\n", OUTPUTFILE.c_str());
+			abort();
+		}
+	}
 
 	try {
 		IloCplex cplex(model);
@@ -1543,6 +1576,10 @@ void FqReader::runILP_gurobi(size_t file_idx, int read_cnt_thres, uint32_t uniqu
 		fout = fopen(OUTPUTFILE.c_str(), "w");
 	else
 		fout = fopen(OUTPUTFILE.c_str(), "a");
+	if (fout == NULL) {
+		fprintf(stderr, "Can not open output file %s.\n", OUTPUTFILE.c_str());
+		abort();
+	}
 
 	// Solving the ILP.
 	try {
@@ -1646,15 +1683,25 @@ void FqReader::runILPsc_gurobi(size_t file_idx, uint32_t min_rc, uint32_t mind_r
 	FILE *fout;
         if (file_idx == 0) {
                 fout = fopen(OUTPUTFILE.c_str(), "w");
-		fprintf(fout, "QUERY/TAXID\t");
-		for (size_t i = 1; i <= n_species; i++) {
-			if (i < n_species)
-				fprintf(fout, "%u\t", genomes[i]->taxID);
-			else
-				fprintf(fout, "%u\n", genomes[i]->taxID);
+		if (fout != NULL) {
+			fprintf(fout, "QUERY/TAXID\t");
+			for (size_t i = 1; i <= n_species; i++) {
+				if (i < n_species)
+					fprintf(fout, "%u\t", genomes[i]->taxID);
+				else
+					fprintf(fout, "%u\n", genomes[i]->taxID);
+			}
+		} else {
+			fprintf(stderr, "Can not open output file %s.\n", OUTPUTFILE.c_str());
+			abort();
 		}
-        } else
+        } else {
                 fout = fopen(OUTPUTFILE.c_str(), "a");
+		if (fout == NULL) {
+			fprintf(stderr, "Can not open output file %s.\n", OUTPUTFILE.c_str());
+			abort();
+		}
+	}
 
 	try {
 		if (nthreads > 1)
@@ -1726,15 +1773,25 @@ void FqReader::outputUniqueCnts(size_t file_idx) {
 	FILE *fout;
         if (file_idx == 0) {
                 fout = fopen(OUTPUTFILE.c_str(), "w");
-		fprintf(fout, "QUERY/TAXID\t");
-		for (size_t i = 1; i <= n_species; i++) {
-			if (i < n_species)
-				fprintf(fout, "%u\t", genomes[i]->taxID);
-			else
-				fprintf(fout, "%u\n", genomes[i]->taxID);
+		if (fout != NULL) {
+			fprintf(fout, "QUERY/TAXID\t");
+			for (size_t i = 1; i <= n_species; i++) {
+				if (i < n_species)
+					fprintf(fout, "%u\t", genomes[i]->taxID);
+				else
+					fprintf(fout, "%u\n", genomes[i]->taxID);
+			}
+		} else {
+			fprintf(stderr, "Can not open output file %s.\n", OUTPUTFILE.c_str());
+			abort();
 		}
-        } else
+        } else {
                 fout = fopen(OUTPUTFILE.c_str(), "a");
+		if (fout == NULL) {
+			fprintf(stderr, "Can not open output file %s.\n", OUTPUTFILE.c_str());
+			abort();
+		}
+	}
 	fprintf(fout, "%s\t", current_filename.c_str());
 	for (size_t i = 1; i <= n_species; i++) {
 		if (i < n_species)

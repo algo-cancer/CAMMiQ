@@ -86,6 +86,10 @@ def parse_assembly_summary_taxid(assembly_summary_fn = "assembly_summary_bacteri
 			fn = tokens[19].split('/')
 			fn = fn[-1] + "_genomic.fna"
 			fn_map[fn] = [tokens[5], tokens[7]]
+			"""
+			First try to find a representative genome
+			"""
+
 			download_list.append(tokens[19] + "/" + fn + ".gz")
 			taxids.append(tokens[5])
 	fp.close()
@@ -105,11 +109,6 @@ def parse_assembly_summary_species(assembly_summary_fn = "assembly_summary_bacte
 			download_list.append(tokens[19] + "/" + fn + ".gz")
 			taxids.append(tokens[6])
 	fp.close()
-
-"""
-First try to find a representative genome
-"""
-def parse_assembly_summary_species_rep(assembly_summary_fn = "assembly_summary_bacteria.txt"):
 	
 def prepare_assembly_summary(division, q = 0):
 	download_assembly_summary(division, q)

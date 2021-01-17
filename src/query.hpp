@@ -49,8 +49,8 @@ class FqReader {
 		std::map<std::pair<uint32_t, uint32_t>, uint64_t> read_cnts_b;
 
 		/* Hash parameters. */
-		uint32_t hash_len_u = -1;
-		uint32_t hash_len_d = -1;
+		uint32_t hash_len_u = 0;
+		uint32_t hash_len_d = 0;
 		std::string IDXFILEU;
 		std::string IDXFILED;
 		std::string IDXDIR = "./";
