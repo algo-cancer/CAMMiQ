@@ -1,0 +1,330 @@
+"""
+	Simulate a metagenomic read collection
+	Usage:
+		python CAMMiQ-simulate <OPTIONS>
+	Options:
+		--db_dir (-d) <DATABASE_PATH> 
+			The directory which the input genomes are maintained
+		--mode (-m) random INT|<TAX_ID_FILENAME>
+			Sample reads from random or the input list of genomes
+		--map (-i) <MAP_FILE>
+			A summary of the input genomes, e.g. genome_map.out
+		--nreads (-n) INT
+			The total number of reads to be sampled.
+		--rlen (-L) INT (FLOAT)
+			Read length / The std of vairable read length
+		--dist (-s) uniform|lognormal
+			Distribution of the genomes. 
+		--erate (-e) FLOAT (FLOAT)
+			Error (substitution) rate / 'N' rate
+		--output (-o) <OUTPUT(FASTQ)_FILE>
+			Output file name (*.fastq).
+		--report (-r) <ABUNDANCE_FILE>
+			Output true abundances.
+	Output: 
+		A simulated fastq file containing the specified number of reads;
+		A report file summarizing the true distribution of each genome/taxid
+"""
+import sys
+import random
+import copy
+import math
+import numpy as np
+
+db_dir = "./"
+L = 100
+L_std = 0.0
+N = 100000
+G = 20
+erate = 0.01
+nrate = 0.0
+dist = 'uniform'
+map_fn = "genome_map.out" #Including path
+output_fn = "sim.fastq" #Including path
+report_fn = "true_abundance.out" #Including path
+genome_ids = []
+
+complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+null_read = 'NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN'
+null_qual = 'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII' \
+	+ 'IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII'
+subs = {'A': ['C', 'G', 'T'], 'C': ['A', 'G', 'T'], 'G': ['A', 'C', 'T'], 'T': ['A', 'C', 'G']}
+
+contigs = dict()
+lengths = dict()
+sp_map = dict()
+
+def parse_arguments():
+	global db_dir, L, L_std, N, G, erate, nrate, dist, map_fn, output_fn, report_fn, genome_ids
+	i = 1
+	while i < len(sys.argv):
+		if sys.argv[i] == "--db_dir" or sys.argv[i] == "-d":
+			i += 1
+			db_dir = sys.argv[i]
+		elif sys.argv[i] == "--mode" or sys.argv[i] == "-m":
+			i += 1
+			if sys.argv[i] == "random":
+				i += 1
+				G = int(sys.argv[i])
+			else:
+				fp = open(sys.argv[i], 'r')
+				for line in fp:
+					line = line.strip()
+					genome_ids.append(line)
+				fp.close()
+				print genome_ids
+		elif sys.argv[i] == "--map" or sys.argv[i] == "-i":
+			i += 1
+			map_fn = sys.argv[i]
+		elif sys.argv[i] == "--nreads" or sys.argv[i] == "-n":
+			i += 1
+			N = int(sys.argv[i])
+		elif sys.argv[i] == "--rlen" or sys.argv[i] == "-L":
+			i += 1
+			L = int(sys.argv[i])
+			if L < 51 or L > 200:
+				sys.exit("Read length must in range [51, 200].")
+			if sys.argv[i + 1][0] != '-':
+				i += 1
+				L_std = float(sys.argv[i])
+		elif sys.argv[i] == "--erate" or sys.argv[i] == "-e":
+			i += 1
+			erate = float(sys.argv[i])
+			if sys.argv[i + 1][0] != '-':
+				i += 1
+				nrate = float(sys.argv[i])
+		elif sys.argv[i] == "--dist" or sys.argv[i] == "-s":
+			i += 1
+			dist = sys.argv[i]
+		elif sys.argv[i] == "--output" or sys.argv[i] == "-o":
+			i += 1
+			output_fn = sys.argv[i]
+		elif sys.argv[i] == "--report" or sys.argv[i] == "-r":
+			i += 1
+			report_fn = sys.argv[i]
+		else:
+			sys.exit("Invalid argument.")
+		i += 1	
+
+def qcheck(read):
+	for i in range(len(read)):
+		if read[i] !='A' and read[i] != 'C' and read[i] !='G' and read[i] !='T' \
+		   and read[i] !='a' and read[i] != 'c' and read[i] !='g' and read[i] !='t':
+			return 0
+	return 1
+
+def getRC(read):
+	return "".join(complement.get(base, base) for base in reversed(read))
+
+def getErr(read, L, err_rate):
+	read_ = read
+	epos = []
+	original = []
+	subsym = []
+	for l in range (L) :
+		e = random.random()
+		if e < err_rate / 3.0:
+			epos.append(l)
+			original.append(read_[l])
+			subsym.append(subs[read_[l]][0])
+			read_ = read_[0 : l] + subs[read_[l]][0] + read_[l + 1 : ]
+		elif e < err_rate * 2.0 / 3.0:
+			epos.append(l)
+			original.append(read_[l])
+			subsym.append(subs[read_[l]][1])
+			read_ = read_[0 : l] + subs[read_[l]][1] + read_[l + 1 : ]
+		elif e < err_rate:
+			epos.append(l)
+			original.append(read_[l])
+			subsym.append(subs[read_[l]][2])
+			read_ = read_[0 : l] + subs[read_[l]][2] + read_[l + 1 : ]
+	return read_, epos, original, subsym
+
+def getN(read, L, n_rate):
+	read_ = read
+	for l in range (L) :
+		e = random.random()
+		if e < n_rate:
+			read_ = read_[0 : l] + 'N' + read_[l + 1 : ]
+	return read_
+
+"""
+Warning: The number of sampled genomes could be larger than what is specified in "--mode"
+	The number given in "--mode" stands for the number of distinct (NCBI) taxids.
+"""
+def sample_genomes():
+	global genome_ids
+	fp = open(map_fn, 'r')
+	for line in fp:
+		line = line.strip()
+		s = line.split('\t')
+		if s[2] not in genome_ids:
+			genome_ids.append(s[2])
+	fp.close()
+	genome_ids = random.sample(genome_ids, G)
+
+def prepare_genomes():
+	global contigs, lengths, sp_map
+	fp = open(map_fn, 'r')
+	for line in fp:
+		line = line.strip()
+		s = line.split('\t')
+		fn = db_dir + s[0]
+		if s[2] in genome_ids: 
+			contigs[fn] = []
+			lengths[fn] = []
+			sp_map[fn] = s[1]
+	fp.close()
+
+def read_fasta():
+	global contigs, lengths
+	fn_keys = contigs.keys()
+	"""
+	Contigs
+	"""
+	for fn in fn_keys:
+		fp = open(fn, 'r')
+		i = 0
+		c = ''
+		l = 0
+		for line in fp:
+			line = line.rstrip()
+			if len(line) > 0 and line[0] == '>' and i > 0:
+				if l >= L:
+					contigs[fn].append(c)
+					lengths[fn].append(l)
+				c = ''
+				l = 0
+			elif i > 0:
+				c += line
+				l += len(line)
+			i += 1
+		fp.close()
+		if l >= L:
+			contigs[fn].append(c)
+			lengths[fn].append(l)
+
+def get_distribution():
+	fn_keys = contigs.keys()
+	read_proportions = copy.deepcopy(lengths)
+	abundances = dict()
+	for fn in fn_keys:
+		abundances[fn] = 1.0 / len(fn_keys)
+	if dist == 'uniform':
+		suml = 0.0
+		for fn in fn_keys:
+			for length in lengths[fn]:
+				suml += length
+		for fn in fn_keys:
+			for i in range(len(lengths[fn])):
+				read_proportions[fn][i] = read_proportions[fn][i] / suml
+	elif dist == 'lognormal':
+		suml = 0.0
+		abundances_ = np.random.lognormal(mean = 0.0, sigma = 1.0, size = len(fn_keys))
+		j = 0
+		for fn in fn_keys:
+			abundances[fn] = abundances_[j]
+			for length in lengths[fn]:
+				suml += length * abundances_[j]
+			j += 1
+		j = 0
+		for fn in fn_keys:
+			for i in range(len(lengths[fn])):
+				read_proportions[fn][i] = read_proportions[fn][i] * abundances_[j] / suml
+			j += 1
+		suml = sum(abundances_)
+		for fn in fn_keys:
+			abundances[fn] = abundances[fn] / suml
+	else:
+		sys.exit("Invalid distribution.")
+	return abundances, read_proportions
+
+def sample_reads_L(output_, rproportions):
+	fp = open(output_, 'w')
+	fi = 0
+	fn_keys = contigs.keys()
+	for fn in fn_keys:
+		for ci in range(len(contigs[fn])):
+			Ni = int(math.ceil(N * rproportions[fn][ci]))
+			for j in range(Ni):
+				read = null_read
+				ri = 0
+				while qcheck(read) == 0:
+					ri = random.randint(0, lengths[fn][ci] - L)
+					read = contigs[fn][ci][ri : ri + L]
+				rc_flag = 0
+				if random.random() >= 0.5:
+					read = getRC(read)
+					rc_flag = 1
+				"""
+				Sequencing error
+				"""	
+				read, epos, original, subsym = getErr(read, L, erate)
+				if nrate > 0.0:
+					read = getN(read, L, nrate)
+				fp.write('@%s c%d r%d rpos%d rc%d ' %(sp_map[fn], ci, j, ri, rc_flag))
+				for eid in range(len(epos)):
+					fp.write('e%d %s:%s ' %(epos[eid], original[eid], subsym[eid]))
+				fp.write('\n')
+				fp.write('%s\n' %(read))
+				fp.write('+\n')
+				fp.write('%s\n' %(null_qual[: L]))
+		fi += 1
+	fp.close()
+
+def sample_reads_var(output_, rproportions):
+	fp = open(output_, 'w')
+	fi = 0
+	fn_keys = contigs.keys()
+	for fn in fn_keys:
+		for ci in range(len(contigs[fn])):
+			Ni = int(math.ceil(N * rproportions[fn][ci]))
+			for j in range(Ni):
+				read = null_read
+				ri = 0
+				L_ = int(round(np.random.normal(L, L_std)))
+				while L_ <= 50 or L_ > 200:
+					L_ = int(round(np.random.normal(L, L_std)))
+				while qcheck(read) == 0:
+					ri = random.randint(0, lengths[fn][ci] - L_)
+					read = contigs[fn][ci][ri : ri + L_]
+				rc_flag = 0
+				if random.random() >= 0.5:
+					read = getRC(read)
+					rc_flag = 1
+				"""
+				Sequencing error
+				"""	
+				read, epos, original, subsym = getErr(read, L_, erate)
+				if nrate > 0.0:
+					read = getN(read, L_, nrate)
+				fp.write('@%s c%d r%d rpos%d rc%d ' %(sp_map[fn], ci, j, ri, rc_flag))
+				for eid in range(len(epos)):
+					fp.write('e%d %s:%s ' %(epos[eid], original[eid], subsym[eid]))
+				fp.write('\n')
+				fp.write('%s\n' %(read))
+				fp.write('+\n')
+				fp.write('%s\n' %(null_qual[: L_]))
+		fi += 1
+	fp.close()
+
+def output_report(abundances):
+	fn_keys = contigs.keys()
+	fp = open(report_fn, 'w')
+	for fn in fn_keys:
+		fp.write("%s\t%.6f\n" %(sp_map[fn], abundances[fn]))
+	fp.close()
+
+if __name__ == '__main__':
+	parse_arguments()
+	if len(genome_ids) == 0:
+		sample_genomes()
+	prepare_genomes()
+	read_fasta()
+	abundances, read_proportions = get_distribution()
+	if L_std > 0.0:
+		sample_reads_var(output_fn, read_proportions)
+	else:
+		sample_reads_L(output_fn, read_proportions)
+	output_report(abundances)
+
