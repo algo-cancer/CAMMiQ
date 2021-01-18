@@ -102,6 +102,10 @@ FqReader::~FqReader() {
 		delete ht_u;
 	if (ht_d != NULL)
 		delete ht_d;
+	for (auto genome : genomes)
+		if (genome != NULL)
+			delete genome;
+	clearReads();
 }
 
 void FqReader::loadIdx_p() {

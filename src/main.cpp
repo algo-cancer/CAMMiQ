@@ -544,6 +544,8 @@ int main(int argc, char** argv) {
 					exit(EXIT_FAILURE);
 				}
 			}
+			if (main_fqr)
+				delete main_fqr;
 			break;
 		default:
 			break;
