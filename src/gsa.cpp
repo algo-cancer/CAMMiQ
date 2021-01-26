@@ -42,8 +42,11 @@ void SuffixArray::computeRevSuffixArray(uint64_t n, bool debug) {
 	#pragma omp parallel for
 	for (uint64_t i = 0; i < n; i++) {
 		uint64_t SA_i = SA[i];
-		if (REV[SA_i] == 0)
+		if (REV[SA_i] == 0) {
 			REV[SA_i] = i;
+			if (SA_i == 10130423)
+				fprintf(stderr, "%lu\n", i);
+		}
 		else {
 			fprintf(stderr, "i: %lu; SA[i]: %lu; REV: %lu.\n", i, SA_i, REV[SA_i]);
 			fprintf(stderr, "Error in suffix array.\n");
@@ -324,6 +327,9 @@ void SuffixArray::computeGnrLcpArray16_d(uint64_t n, uint16_t el, uint16_t ulmax
 		
 		if (l > begin)
 			for (; GSA16[l] == GSA16[l - 1]; l--);
+
+		minlcp = UINT16_MAX;
+		nextd = 0;
 		for (uint64_t i = l; i < r; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
 			for (; GSA16[i + nextd] == GSA16[i + nextd + 1]; nextd++);
 			for (int64_t j = nextd; j >= 0; j--) {
@@ -354,6 +360,8 @@ void SuffixArray::computeGnrLcpArray16_d(uint64_t n, uint16_t el, uint16_t ulmax
 			if (GSA16[r] == GSA16[r + 1])
 				for (; GSA16[r] == GSA16[r - 1]; r--);
 
+		minlcp = UINT16_MAX;
+		nextd = 0;
 		for (uint64_t i = r; i > l; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
 			for (; GSA16[i - nextd] == GSA16[i - nextd - 1]; nextd++);
 			for (int64_t j = nextd; j >= 0; j--) {
@@ -416,6 +424,9 @@ void SuffixArray::computeGnrLcpArray32_d(uint64_t n, uint16_t el, uint16_t ulmax
 
 		if (l > begin)
 			for (; GSA32[l] == GSA32[l - 1]; l--);
+
+		minlcp = UINT16_MAX;
+		nextd = 0;
 		for (uint64_t i = l; i < r; i += (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
 			for (; GSA32[i + nextd] == GSA32[i + nextd + 1]; nextd++);
 			for (int64_t j = nextd; j >= 0; j--) {
@@ -446,6 +457,8 @@ void SuffixArray::computeGnrLcpArray32_d(uint64_t n, uint16_t el, uint16_t ulmax
 			if (GSA32[r] == GSA32[r + 1])
 				for (; GSA32[r] == GSA32[r - 1]; r--);
 
+		minlcp = UINT16_MAX;
+		nextd = 0;
 		for (uint64_t i = r; i > l; i -= (nextd + 1), minlcp = UINT16_MAX, nextd = 0) {
 			for (; GSA32[i - nextd] == GSA32[i - nextd - 1]; nextd++);
 			for (int64_t j = nextd; j >= 0; j--) {
