@@ -42,11 +42,8 @@ void SuffixArray::computeRevSuffixArray(uint64_t n, bool debug) {
 	#pragma omp parallel for
 	for (uint64_t i = 0; i < n; i++) {
 		uint64_t SA_i = SA[i];
-		if (REV[SA_i] == 0) {
+		if (REV[SA_i] == 0)
 			REV[SA_i] = i;
-			if (SA_i == 10130423)
-				fprintf(stderr, "%lu\n", i);
-		}
 		else {
 			fprintf(stderr, "i: %lu; SA[i]: %lu; REV: %lu.\n", i, SA_i, REV[SA_i]);
 			fprintf(stderr, "Error in suffix array.\n");
