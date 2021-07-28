@@ -9,20 +9,28 @@
 			The directory to maintain the genomes
 		--taxa bacteria|viral|archaea|all
 			Download all complete bacterial, viral, archaeal genomes
-		--sample none|taxid|species
+			Default: bacteria
+		--sample none|taxid|species|species_rep
 			Keep one representative genome per taxid/species
+			species_rep: Keep ALL reference genomes and representative genomes per species
+			Default: species
+		--map_fn <OUTPUT_FILE_NAME>
+			Specify the output (genome map) file name
+			Default: genome_map.out
 		--unzip
 			Unzip *.gz files
 		--quiet
 			Disable wget outputs 
 	Output: 
-		A list of *.fna(.gz) files and a single file "genome_map.out" in directory DATABASE_PATH
+		A list of *.fna(.gz) files and a single file "genome_map.out" 
+		(or with user specified file name) in directory DATABASE_PATH
 """
 import sys
 import os
 
 db_dir = "./"
-sample_genomes = "none"
+sample_genomes = "species"
+genome_map_fn = "genome_map.out"
 unzip_genomes = 0
 div = "bacteria"
 quiet = 0
@@ -32,7 +40,7 @@ taxids = []
 taxid_status = []
 
 def parse_arguments():
-	global db_dir, sample_genomes, unzip_genomes, div, quiet
+	global db_dir, sample_genomes, genome_map_fn, unzip_genomes, div, quiet
 	i = 1
 	while i < len(sys.argv):
 		if sys.argv[i] == "--dir":
@@ -44,6 +52,9 @@ def parse_arguments():
 		elif sys.argv[i] == "--sample":
 			i += 1
 			sample_genomes = sys.argv[i]
+		elif sys.argv[i] == "--map_fn":
+			i += 1
+			genome_map_fn = sys.argv[i]
 		elif sys.argv[i] == "--unzip":
 			unzip_genomes = 1
 		elif sys.argv[i] == "--quiet":
@@ -62,7 +73,6 @@ def download_assembly_summary(division, q = 0):
 
 def parse_assembly_summary(assembly_summary_fn = "assembly_summary_bacteria.txt"):
 	fp = open(db_dir + assembly_summary_fn, 'r')
-	cate = dict()
 	for line in fp:
 		if line[0] == "#":
 			continue
@@ -77,7 +87,6 @@ def parse_assembly_summary(assembly_summary_fn = "assembly_summary_bacteria.txt"
 
 def parse_assembly_summary_taxid(assembly_summary_fn = "assembly_summary_bacteria.txt"):
 	fp = open(db_dir + assembly_summary_fn, 'r')
-	cate = dict()
 	for line in fp:
 		if line[0] == "#":
 			continue
@@ -108,7 +117,6 @@ def parse_assembly_summary_taxid(assembly_summary_fn = "assembly_summary_bacteri
 
 def parse_assembly_summary_species(assembly_summary_fn = "assembly_summary_bacteria.txt"):
 	fp = open(db_dir + assembly_summary_fn, 'r')
-	cate = dict()
 	for line in fp:
 		if line[0] == "#":
 			continue
@@ -136,6 +144,40 @@ def parse_assembly_summary_species(assembly_summary_fn = "assembly_summary_bacte
 					download_list[taxid_idx] = tokens[19] + "/" + fn + ".gz"
 					taxid_status[taxid_idx] = tokens[4]
 	fp.close()
+
+def parse_assembly_summary_species_rep(assembly_summary_fn = "assembly_summary_bacteria.txt"):
+	fp = open(db_dir + assembly_summary_fn, 'r')
+	for line in fp:
+		if line[0] == "#":
+			continue
+		line = line.strip()
+		tokens = line.split('\t')
+		if tokens[11] == "Complete Genome":
+			if tokens[6] not in taxids:
+				fn = tokens[19].split('/')
+				fn = fn[-1] + "_genomic.fna"
+				fn_map[fn] = [tokens[6], tokens[7]]
+				download_list.append(tokens[19] + "/" + fn + ".gz")
+				taxids.append(tokens[6])
+				taxid_status.append(tokens[4])
+			else:
+				taxid_idx = taxids.index(tokens[6])
+				if tokens[4] == "reference genome" or tokens[4] == "representative genome":
+					if taxid_status[taxid_idx] == "na":  
+						fn = tokens[19].split('/')
+						fn = fn[-1] + "_genomic.fna"
+						fn_map[fn] = [tokens[6], tokens[7]]
+						fn_old = download_list[taxid_idx].split('/')
+						fn_old = fn_old[-1][:-3]
+						del fn_map[fn_old]
+						download_list[taxid_idx] = tokens[19] + "/" + fn + ".gz"
+						taxid_status[taxid_idx] = tokens[4]
+					else:
+						fn = tokens[19].split('/')
+						fn = fn[-1] + "_genomic.fna"
+						fn_map[fn] = [tokens[6], tokens[7]]
+						download_list.append(tokens[19] + "/" + fn + ".gz")
+	fp.close()
 	
 def prepare_assembly_summary(division, q = 0):
 	download_assembly_summary(division, q)
@@ -143,6 +185,8 @@ def prepare_assembly_summary(division, q = 0):
 		parse_assembly_summary("assembly_summary_" + division + ".txt")
 	elif sample_genomes == "taxid":
 		parse_assembly_summary_taxid("assembly_summary_" + division + ".txt")
+	elif sample_genomes == "species_rep":
+		parse_assembly_summary_species_rep("assembly_summary_" + division + ".txt")
 	else:
 		parse_assembly_summary_species("assembly_summary_" + division + ".txt")
 
@@ -158,11 +202,9 @@ def unzip_files():
 	os.popen("gunzip " + db_dir + "*.gz")
 
 def output_map():
-	map_fp = open(db_dir + "genome_map.out", 'w')
-	i = 1
+	map_fp = open(db_dir + genome_map_fn, 'w')
 	for fn in fn_map.keys():
-		map_fp.write("%s\t%d\t%s\t%s\n" %(fn, i, fn_map[fn][0], fn_map[fn][1]))
-		i += 1
+		map_fp.write("%s\t%s\t%s\n" %(fn, fn_map[fn][0], fn_map[fn][1]))
 	map_fp.close()
 
 if __name__ == '__main__':
