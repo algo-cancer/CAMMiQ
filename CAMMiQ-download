@@ -36,6 +36,7 @@ div = "bacteria"
 quiet = 0
 fn_map = dict()
 download_list = []
+download_list_extra = []
 taxids = []
 taxid_status = []
 
@@ -176,7 +177,7 @@ def parse_assembly_summary_species_rep(assembly_summary_fn = "assembly_summary_b
 						fn = tokens[19].split('/')
 						fn = fn[-1] + "_genomic.fna"
 						fn_map[fn] = [tokens[6], tokens[7]]
-						download_list.append(tokens[19] + "/" + fn + ".gz")
+						download_list_extra.append(tokens[19] + "/" + fn + ".gz")
 	fp.close()
 	
 def prepare_assembly_summary(division, q = 0):
@@ -194,8 +195,12 @@ def download_files(q = 0):
 	if q == 1:
 		for file in download_list:
 			os.popen("wget -q " + file + " -P " + db_dir)
+		for file in download_list_extra:
+			os.popen("wget -q " + file + " -P " + db_dir)
 	else:
 		for file in download_list:
+			os.popen("wget " + file + " -P " + db_dir)
+		for file in download_list_extra:
 			os.popen("wget " + file + " -P " + db_dir)
 
 def unzip_files():
@@ -203,8 +208,17 @@ def unzip_files():
 
 def output_map():
 	map_fp = open(db_dir + genome_map_fn, 'w')
+	taxid2gid = dict()
+	i = 1
 	for fn in fn_map.keys():
-		map_fp.write("%s\t%s\t%s\n" %(fn, fn_map[fn][0], fn_map[fn][1]))
+		taxid = fn_map[fn][0]
+		sp_name = fn_map[fn][1]
+		if taxid not in taxid2gid:
+			taxid2gid[taxid] = i
+			map_fp.write("%s\t%d\t%s\t%s\n" %(fn, i, taxid, sp_name))
+			i += 1
+		else:
+			map_fp.write("%s\t%d\t%s\t%s\n" %(fn, taxid2gid[taxid], taxid, sp_name))
 	map_fp.close()
 
 if __name__ == '__main__':
