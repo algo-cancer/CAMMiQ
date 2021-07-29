@@ -119,7 +119,7 @@ and ```[parameters]``` include the following list of (possibly mandatory) parame
 * ```-q (-Q) <QUERY_FILE(S)>``` **Mandatory**. ```<QUERY_FILE(S)>``` can be either a list of fastq files, or a directory containing the list of fastq files in your query. A capitalized ```-Q``` indicate the input is a directory, that is,  
   * ```-q``` CAMMiQ takes the list of fastq files.
   * ```-Q``` CAMMiQ takes a directory which contains the list of fastq files.
-* ```-i <INDEX_FILES>``` **Mandatory**. As discussed in [What is CAMMiQ index composed of?](#-What-is-CAMMiQ-index-composed-of?), ```<INDEX_FILES>``` **should include** ```*.bin1``` and ```*.bin2```; the default location for CAMMiQ to find those meta-information (```genome_lengths.out```,  ```unique_lmer_count_u.out```, ```unique_lmer_count_d.out```) files is the same as that provided in ```<INDEX_FILES>```.
+* ```-i <INDEX_FILES>``` **Optional**. As per ```cammiq --build``` option, the default index file names (if ```-i``` is not specified) are ```index_u.bin1``` and ```index_d.bin2```. If index files are stored in a different loaction (directory), use ```-i``` to specify the directory and file names: as discussed in [What is CAMMiQ index composed of?](#-What-is-CAMMiQ-index-composed-of?), ```<INDEX_FILES>``` **should include** ```*.bin1``` and ```*.bin2``` plus additional meta-information; the default location for CAMMiQ to find those meta-information (```genome_lengths.out```,  ```unique_lmer_count_u.out```, ```unique_lmer_count_d.out```) files is the same as that provided in ```<INDEX_FILES>```.
 
   One exception is when ```--read_cnts``` is specified. In this case CAMMiQ will automatically *ignore* the meta-information files.
 
