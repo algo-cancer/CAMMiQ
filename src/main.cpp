@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
 
 	/* Check the parameters. */
 	int K = -1, Lmax = -1, L = -1, t = 1, h = -1, h1 = -1, h2 = -1;
-	std::string fa_name = "", fa_dir = "", fm_name = "", fi_name1 = "", fi_name2 = "", fq_name = "", fq_dir = "";
+	std::string fa_name = "", fa_dir = "", fm_name = "", fi_name1 = "./index_u.bin1", fi_name2 = "./index_d.bin2", fq_name = "", fq_dir = "";
 	std::vector<std::string> fa_names;
 	std::vector<std::string> fq_names;
 	FastaReader *main_fr = NULL;
@@ -529,9 +529,9 @@ int main(int argc, char** argv) {
 			main_fqr->loadSmap();
 			main_fqr->nthreads = t;
 			if (!fq_names.empty()) {
-				if (id_mode == 0)
+				if (id_mode == 0) {
 					main_fqr->queryFastq_p(fq_names, min_rl, fine_parameters);
-				else
+				} else
 					main_fqr->queryFastq_sc(id_mode, fq_names, min_rl, fine_parameters_);
 			} else {
 				if (fq_dir != "") {

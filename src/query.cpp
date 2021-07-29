@@ -5,9 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <cstring>
-#include <unordered_map>
 #include <set>
-#include <unordered_set>
 #include <algorithm>
 #include <chrono>
 #include <omp.h>
@@ -131,6 +129,7 @@ void FqReader::loadSmap() {
 
 	/* Read in fasta file. */ 
 	inputFile.open(MAPFILE);
+	std::set<uint32_t> taxids;
 	if (inputFile.is_open()) {
 		while (std::getline(inputFile, line)) {
 			std::istringstream lines(line);
@@ -139,8 +138,14 @@ void FqReader::loadSmap() {
 				std::getline(lines, taxid, '\t');
 				std::getline(lines, gname, '\t');
 			}
-			Genome *new_genome = new Genome((uint32_t) stoi(taxid), gname);
-			genomes.push_back(new_genome);
+			uint32_t taxid_ = (uint32_t) stoi(taxid);
+			if (taxids.count(taxid_) != 0)
+				genomes[stoi(id)]->name += ('/' + gname);
+			else {
+				Genome *new_genome = new Genome(taxid_, gname);
+				genomes.push_back(new_genome);
+				taxids.insert(taxid_);
+			}
 		}
 		inputFile.close();
 	} else {
