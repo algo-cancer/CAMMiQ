@@ -1,0 +1,267 @@
+"""
+	Convert taxonomic ID to higher taxonomic level
+	System requirements:
+		python, wget (all added to $PATH)
+	Usage:
+		python CAMMiQ-preprocess <OPTIONS>
+	Options:
+		--dir <TAXONOMY_PATH> 
+			The directory to maintain NCBI's taxonomy information
+			Default value is current directory './'
+		--map_fn <INPUT_FILE_NAME>
+			**Required parameter, except with option --clean
+			The genome map file to be modified
+		--output_fn <OUTPUT_FILE_NAME>
+			The new genome map file (if different from <INPUT_FILE_NAME>)
+			Default option is to rewrite <INPUT_FILE_NAME>
+		--add_genome <FASTA> <TAXID> <NAME> 
+			Add genome (file name: <FASTA>, with taxonomic ID and name) to map file
+			This option only rewrites the genome map file, without checking the actual genome (fasta)
+		--merge_map <INPUT_FILE_NAME2>
+			Merge the genome map file specified here to that is specified in option --map_fn
+			Merged file will be written to the new genome map file specified in --output_fn
+			This option will allow users to add multiple genomes to the map file
+		--del_genome <FASTA> 
+			Delete genome (file name: <FASTA>) within map file
+			This option does nothing if genome (fasta) is not in the input map file
+		--convert_to_genus
+			Download the latest version of NCBI taxonomy tree
+			Then convert the genome map file at species or strain level to genus level
+			After conversion, Genomes within the same genus will be assigned to the same ID
+			If information is not given in NCBI taxonomy tree, keep the old taxonomic ID and name
+		--sort_id 
+			Reorganize genomes so that their ID (second column of map file) ranges from 1 to #Genomes
+		--clean
+			Remove taxonomy tree files
+		--quiet
+			Disable wget outputs
+		
+	Output: 
+		A modified *.map file (with user specified file name)
+"""
+import sys
+import os
+
+tdir = "./"
+mode = -1
+quiet = 0
+map_fn = ""
+map_fn2 = ""
+output_fn = ""
+parents = dict()
+ranks = dict()
+names = dict()
+merged = dict()
+genus_ids = dict()
+
+#For option add-genome or del-genome
+fn_ = ""
+tax_id_ = ""
+sp_name_ = ""
+
+def parse_arguments():
+	global mode, quiet, tdir, map_fn, map_fn2, output_fn, fn_, tax_id_, sp_name_
+	i = 1
+	while i < len(sys.argv):
+		if sys.argv[i] == "--dir":
+			i += 1
+			tdir = sys.argv[i]
+		elif sys.argv[i] == "--map_fn":
+			i += 1
+			map_fn = sys.argv[i]
+		elif sys.argv[i] == "--merge_map":
+			mode = 2
+			i += 1
+			map_fn2 = sys.argv[i]
+		elif sys.argv[i] == "--output_fn":
+			i += 1
+			output_fn = sys.argv[i]
+		elif sys.argv[i] == "--convert_to_genus":
+			mode = 0
+		elif sys.argv[i] == "--add_genome":
+			mode = 1
+			i += 1
+			fn_ = sys.argv[i]
+			i += 1
+			tax_id_ = sys.argv[i]
+			i += 1
+			sp_name_ = sys.argv[i]
+		elif sys.argv[i] == "--del_genome":
+			mode = 3
+			i += 1
+			fn_ = sys.argv[i]
+		elif sys.argv[i] == "--sort_id":
+			mode = 4
+		elif sys.argv[i] == "--clean":
+			mode = 5
+		elif sys.argv[i] == "--quiet":
+			quiet = 1
+		else:
+			sys.exit("Invalid argument.")
+		i += 1
+
+def download_taxonomy(q = 0):
+	taxonomy_dir = "https://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz"
+	if q == 1:
+		os.popen("wget -q " + taxonomy_dir)
+	else:
+		os.popen("wget " + taxonomy_dir)
+	os.popen("mv taxdump.tar.gz " + tdir)
+	cwd = os.getcwd()
+	os.chdir(tdir)
+	os.popen("tar -xf ./taxdump.tar.gz")
+	os.popen("rm -rf taxdump.tar.gz citations.dmp delnodes.dmp division.dmp gc.prt gencode.dmp readme.txt")
+	os.chdir(cwd)
+
+def clean_taxonomy():
+	cwd = os.getcwd()
+	os.chdir(tdir)
+	os.popen("rm -rf nodes.dmp names.dmp merged.dmp")
+	os.chdir(cwd)
+
+def read_nodes():
+	global parents, ranks
+	fp = open(tdir + "nodes.dmp", 'r')
+	for line in fp:
+		line = line.strip()
+		tokens = line.split("\t")
+		parents[tokens[0]] = tokens[2]
+		ranks[tokens[0]] = tokens[4]
+	fp.close()
+
+def read_names():
+	global names
+	fp = open(tdir + "names.dmp", 'r')
+	for line in fp:
+		line = line.strip()
+		tokens = line.split("\t")
+		#print tokens
+		if tokens[6] == "scientific name":
+			names[tokens[0]] = tokens[2]
+	fp.close()
+
+def read_map(map_fn2_ = None):
+	genome_map = dict()
+	if map_fn2_:
+		fp = open(map_fn2_, 'r')
+	else:
+		fp = open(map_fn, 'r')
+	for line in fp:
+		line = line.strip()
+		tokens = line.split("\t")
+		genome_map[tokens[0]] = [tokens[2], tokens[3]]
+	fp.close()
+	return genome_map
+
+def read_map_convert():
+	genome_map = dict()
+	gid_map = dict()
+	fp = open(map_fn, 'r')
+	for line in fp:
+		line = line.strip()
+		tokens = line.split("\t")
+		genome_map[tokens[0]] = [tokens[2], tokens[3]]
+		tax_id = tokens[2]
+		while True:
+			try:
+				if parents[tax_id] == '1':
+					break
+				tax_id = parents[tax_id]
+			except:
+				break
+			if w[ranks[tax_id]] >= 0:
+				break
+		gid_map[tokens[2]] = tax_id
+	fp.close()	
+	return genome_map, gid_map
+
+def add_genome(genome_map_, fn, tax_id, name):
+	if fn not in genome_map_:
+		genome_map_[fn] = [tax_id, name]
+	else:
+		print "Genome already in map file."
+
+def del_genome(genome_map_, fn):
+	genome_map_.pop(fn, None)
+
+def output_map(genome_map_, gid_map_ = dict()):
+	map_fp = open(output_fn, 'w')
+	taxid2gid = dict()
+	i = 1
+	if len(gid_map_) == 0:
+		for fn in genome_map_.keys():
+			taxid = genome_map_[fn][0]
+			sp_name = genome_map_[fn][1]
+			if taxid not in taxid2gid:
+				taxid2gid[taxid] = i
+				map_fp.write("%s\t%d\t%s\t%s\n" %(fn, i, taxid, sp_name))
+				i += 1
+			else:
+				map_fp.write("%s\t%d\t%s\t%s\n" %(fn, taxid2gid[taxid], taxid, sp_name))
+	else:
+		for fn in genome_map_.keys():
+			taxid = gid_map_[genome_map_[fn][0]]
+			try:
+				gn_name = names[taxid]
+			except:
+				assert taxid not in names
+				output = os.popen("grep -a \'" + taxid + "\' " + tdir + "merged.dmp").read()
+				try:
+					merged_taxid = output[2]
+					gn_name = names[merged_taxid]
+				except: 
+					taxid = genome_map_[fn][0]
+					gn_name = genome_map_[fn][1]
+					print "UNCONVERTED FILE %s WITH TAXONOMIC ID %s AND NAME %s." %(fn, taxid, gn_name)
+			if taxid not in taxid2gid:
+				taxid2gid[taxid] = i
+				map_fp.write("%s\t%d\t%s\t%s\n" %(fn, i, taxid, gn_name))
+				i += 1
+			else:
+				map_fp.write("%s\t%d\t%s\t%s\n" %(fn, taxid2gid[taxid], taxid, gn_name))
+	map_fp.close()
+
+if __name__ == '__main__':
+	w = {'superkingdom' : 1, 'tribe' : 1, 'subgenus' : -1, 'family' : 1, 
+		'species subgroup' : -1, 'serotype' : -1, 'strain' : -1, 'species group' : -1, 
+		'pathogroup' : -1, 'superclass' : 1, 'subspecies' : -1, 'species' : -1, 
+		'cohort' : 0, 'no rank' : -1, 'superorder' : 1, 'infraorder' : 1, 'clade' : 0, 
+		'isolate' : 0, 'subclass' : 1, 'subsection' : -1, 'series' : -1, 'kingdom' : 1, 
+		'subtribe' : 1, 'forma specialis' : -1, 'subphylum' : 1, 'subkingdom' : 1, 
+		'forma' : -1, 'subvariety' : -1, 'varietas' : -1, 'subcohort' : 0, 'biotype' : 0, 
+		'serogroup' : -1, 'superphylum' : 1, 'subfamily' : 1, 'class' : 1, 'genotype' : 0, 
+		'infraclass' : 1, 'superfamily' : 1, 'morph' : 0, 'parvorder' : 1, 'phylum' : 1, 
+		'suborder' : 1, 'section' : -1, 'genus' : 0, 'order' : 1}
+
+	parse_arguments()
+	if mode < 3 and map_fn == "":
+		print "Genome map file is required."
+	if output_fn == "":
+		output_fn = map_fn
+	if mode == 0:
+		download_taxonomy(quiet)
+		read_nodes()
+		read_names()
+		genome_map, gid_map = read_map_convert()
+		output_map(genome_map, gid_map)
+	elif mode == 1:
+		genome_map = read_map()
+		add_genome(genome_map, fn_, tax_id_, sp_name_)
+		output_map(genome_map)
+	elif mode == 2:
+		genome_map1 = read_map()
+		genome_map2 = read_map(map_fn2)
+		genome_map2.update(genome_map1)
+		output_map(genome_map2)
+	elif mode == 3:
+		genome_map = read_map()
+		del_genome(genome_map, fn_)
+		output_map(genome_map)
+	elif mode == 4:
+		genome_map = read_map()
+		output_map(genome_map)
+	elif mode == 5:
+		clean_taxonomy()
+	else:
+		print "Please specify option add-genome/convert-to-genus/sort-id/clean."
+
