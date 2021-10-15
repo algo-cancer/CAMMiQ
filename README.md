@@ -57,6 +57,8 @@ On the other hand, ```[parameters]``` include the following list of (possibly ma
   ```
   
   (As a shortcut, ```-f``` can alternatively take a list of fasta files to build an index on these files. However, to query the index you will again need to organize the information of these fasta files in a ```<MAP_FILE>``` and use it as the input in the ```--query``` mode.)
+  
+  As real examples of map files, the 4 index datasets presented in the paper can be found in https://drive.google.com/drive/u/0/folders/1iL0pZ3Jb3QS6AOwO_IGLS2ZDFQJEHpn0.
 
   *Note.* It is in fact **recommended** that genome IDs grow from 1 to the number of genomes to be indexed. This feature was designed to minimize the memory usage when constructing CAMMiQ's index. See "[What is the expected computational cost of CAMMiQ?](#-What-is-the-expected-computational-cost-of-CAMMiQ?)" for more details.
 
